@@ -26,7 +26,7 @@ namespace CleverGirl {
                 CleverGirl.ModConfig = new ModConfig();
             }
 
-            Logger = new Logger(modDirectory, "ai_assistant");
+            Logger = new Logger(modDirectory, "clever_girl");
 
             Assembly asm = Assembly.GetExecutingAssembly();
             FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(asm.Location);
