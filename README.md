@@ -15,8 +15,17 @@ Jumping Heat change
 The following values can be tweaked in `mod.json` to customize your experience:
 * **Debug:** If true, detailed information will be printed in the logs.
 
-### WIP
+## WIP
 
+### General
+Part of the problem is that BT has too @#$*(&@ many options that go into decision tree calculations, which does not help. What's your role (sniper, brawler, escort, etc), what movement best helps that purpose (from a choice of 20-60 hexes and 2-3 movement types (move, sprint, jump)). Balance that against which position makes the most sense when you have 4 weapon bands, and heat to balance as well.
+There are many things that could help that outcome - running different movement calculations in parallel, making a stronger determination of unit purpose before going through the tree logic to determine specific actions (which is present but not heavily used), pre-calculating weapon fire from each position independently, etc. Short-cutting the weapon calculations by applying a mean value to the shots * projectiles * damage calcuation, instead of doing each one one by one, etc.
+I've been trying for a while to get a profiler hooked up to confirm my suspicions, but I think three changes would make a major impact on performance:
+* Start running the decision tree in the previous actor's turn. A suboptimal decision that doesn't take into account the last action but executed immediately probably increases player satisfaction immensely.
+* Normalize weapons and cluster them from a single emitter, instead of resolving the damage weapon-by-shot-by-projectile
+* Implement stronger 'lance commander' logic (already in AI) that defines what the lance wants to do, instead of letting it waffle actor by actor. Pick a model on the player's side to just punish, instead of letting each actor do their own thing.
+
+### Jumping
 AIUtil uses: `if (AIUtil.Get2DDistanceBetweenVector3s(sampledPathNodes[i].Position, this.unit.CurrentPosition) >= 1f)`
 
 But add Mech uses: 
@@ -28,12 +37,9 @@ But add Mech uses:
             this.AddJumpHeat(num);
 ```
 
-I wonder if it's a difference in 2D vs. 3D vector calculation
-
+`I wonder if it's a difference in 2D vs. 3D vector calculation
 That actually would explain it fairly neatly
-
 I bet they don't overheat on a flat plain
-
 But only when they are jumping vertical distances
+I bet that's it, yeah.`
 
-I bet that's it, yeah.
