@@ -1,17 +1,20 @@
-﻿using Harmony;
+﻿using CleverGirl.Patches;
+using Harmony;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using us.frostraptor.modUtils.logging;
 
 namespace CleverGirl {
-    public class CleverGirl {
+
+    public class Mod {
 
         public const string HarmonyPackage = "us.frostraptor.CleverGirl";
 
-        public static Logger Logger;
+        public static IntraModLogger Log;
         public static string ModDir;
-        public static ModConfig ModConfig;
+        public static ModConfig Config;
 
         public static readonly Random Random = new Random();
 
@@ -20,24 +23,26 @@ namespace CleverGirl {
 
             Exception settingsE;
             try {
-                CleverGirl.ModConfig = JsonConvert.DeserializeObject<ModConfig>(settingsJSON);
+                Mod.Config = JsonConvert.DeserializeObject<ModConfig>(settingsJSON);
             } catch (Exception e) {
                 settingsE = e;
-                CleverGirl.ModConfig = new ModConfig();
+                Mod.Config = new ModConfig();
             }
 
-            Logger = new Logger(modDirectory, "clever_girl");
+            Log = new IntraModLogger(modDirectory, "clever_girl", Mod.Config.Debug, Mod.Config.Trace);
 
             Assembly asm = Assembly.GetExecutingAssembly();
             FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(asm.Location);
-            Logger.Log($"Assembly version: {fvi.ProductVersion}");
+            Log.Info($"Assembly version: {fvi.ProductVersion}");
 
-            Logger.LogIfDebug($"ModDir is:{modDirectory}");
-            Logger.LogIfDebug($"mod.json settings are:({settingsJSON})");
-            Logger.Log($"mergedConfig is:{CleverGirl.ModConfig}");
+            Log.Debug($"ModDir is:{modDirectory}");
+            Log.Debug($"mod.json settings are:({settingsJSON})");
+            Log.Info($"mergedConfig is:{Mod.Config}");
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
             harmony.PatchAll(asm);
+
+            ProfilePatches.PatchAllMethods(harmony);
         }
     }
 }
