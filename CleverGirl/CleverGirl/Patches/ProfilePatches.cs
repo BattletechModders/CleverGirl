@@ -9,15 +9,15 @@ using System.Text;
 namespace CleverGirl.Patches {
     public static class ProfilePatches {
 
-        private class Target {
+        public class Target {
             public readonly Type type;
             public readonly MethodBase method;
             public Target(Type type, MethodBase method) {
                 this.type = type;
                 this.method = method;
             }
-            public string ToString() {
-                string typeAndMethod = type.Name + ":" + method.Name;
+            public override string ToString() {
+                string typeAndMethod = type.FullName + ":" + method.Name;
 
                 StringBuilder sb = new StringBuilder(":");
                 foreach (ParameterInfo pi in method.GetParameters()) {
@@ -53,11 +53,15 @@ namespace CleverGirl.Patches {
                 .Where(t => !t.type.FullName.StartsWith("Gaia.Quadtree"))
                 .Where(t => !t.type.FullName.StartsWith("HoudiniEngineUnity"))
                 .Where(t => !t.type.FullName.StartsWith("PlaylistItem"))
-                .Where(t => !t.type.FullName.StartsWith("TsNode"))
+                .Where(t => !t.type.FullName.StartsWith("System"))
+                .Where(t => !t.type.FullName.StartsWith("TScript"))
                 .Where(t => !t.type.FullName.StartsWith("UIWidget"))
+                .Where(t => !t.type.FullName.StartsWith("Unity"))
                 .Where(t => !t.type.FullName.StartsWith("WwiseObjectID"))
 
                 // HBS code
+                .Where(t => !t.type.FullName.StartsWith("AILogCache"))
+                .Where(t => !t.type.FullName.StartsWith("BattleTech.AIOrder"))
                 .Where(t => !t.type.FullName.StartsWith("BattleTech.Data.DataManager"))
                 .Where(t => !t.type.FullName.StartsWith("BattleTech.DataObjects"))
                 .Where(t => !t.type.FullName.StartsWith("BattleTech.Flashpoint"))
@@ -80,12 +84,19 @@ namespace CleverGirl.Patches {
                 .Where(t => !t.method.Name.Contains("GetType"))
                 .Where(t => !t.method.Name.Contains("MemberwiseClone"))
                 .Where(t => !t.method.Name.Contains("obj_address"))
+
+                // Unity methods
+                .Where(t => !t.method.Name.Contains("GetComponents"))
+                .Where(t => !t.method.Name.Contains("GetInstanceID"))
+
                 .ToList();
             Mod.Log.Info($"FilteredMethods count: {filteredMethods.Count}");
 
             foreach (Target target in filteredMethods) {
-                Mod.Log.Info($"  Wrapping method: ({target.ToString()})");
-                if (!target.method.IsGenericMethod) {
+                //Mod.Log.Info($"  Wrapping method: ({target.ToString()})");
+                if (!target.method.IsGenericMethod && !target.method.IsAbstract && !target.method.IsVirtual 
+                    && ((target.method.GetMethodImplementationFlags() & MethodImplAttributes.InternalCall) == 0)
+                    ) { 
                     var hPrefix = new HarmonyMethod(prefix);
                     var hPostfix = new HarmonyMethod(postfix);
                     harmony.Patch(target.method, hPrefix, hPostfix, null);
@@ -93,31 +104,32 @@ namespace CleverGirl.Patches {
                 }
             }
 
-            Mod.Log.Debug("=== End Diagnostics Logger ====");
+            Mod.Log.Info("=== End Diagnostics Logger ====");
         }
     }
 
     public static class LogExecTime {
 
-        public static void Prefix(ExecState __state, MethodBase __originalMethod) {
-            Mod.Log.Info($"PREFIX: {__originalMethod.Name}");
-            __state = new ExecState(__originalMethod.Name);
+        public static void Prefix(ref ExecState __state, MethodBase __originalMethod) {
+            //Mod.Log.Info($"PREFIX: {__originalMethod.Name}");
+            ProfilePatches.Target target = new ProfilePatches.Target(__originalMethod.DeclaringType, __originalMethod);
+            __state = new ExecState(target);
             __state.Start();
         }
 
-        public static void Postfix(ExecState __state) {
-            Mod.Log.Info($"POSTFIX: {__state.name}");
-            __state.Stop();
+        public static void Postfix(ref ExecState __state) {
+            //Mod.Log.Info($"POSTFIX: {__state.name}");
+            if (__state != null) { __state.Stop(); }
         }
     }
 
     public class ExecState {
         public readonly Stopwatch stopWatch;
-        public readonly string name;
+        public readonly ProfilePatches.Target target;
 
-        public ExecState(string name) {
+        public ExecState(ProfilePatches.Target target) {
             stopWatch = new Stopwatch();
-            this.name = name;
+            this.target = target;
         }
 
         public void Start() {
@@ -126,7 +138,7 @@ namespace CleverGirl.Patches {
 
         public void Stop() {
             stopWatch.Stop();
-            Mod.Log.Info($"{name} took {stopWatch.ElapsedMilliseconds}ms");
+            Mod.Log.Info($"{target.ToString()} took {stopWatch.ElapsedTicks}tick");
         }
 
     }
