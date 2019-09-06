@@ -7,6 +7,39 @@ using System.Reflection;
 using System.Text;
 
 namespace CleverGirl.Patches {
+
+    [HarmonyPatch(typeof(AITeam), "OnUpdate")]
+    public static class AITeam_OnUpdate_Patch {
+        public static void Prefix() {
+            Mod.Log.Info("== CLEARING INVOKE COUNTS ==");
+            State.InvokeCounts.Clear();
+        }
+
+        public static void Postfix() {
+            Mod.Log.Info("== INVOKE COUNTS ==");
+            var sortedKeys = State.InvokeCounts.Keys.ToList();
+            sortedKeys.Sort();
+            Mod.Log.Info($"  KEY COUNTS - {sortedKeys.Count}");
+
+            foreach (string key in sortedKeys) {
+                List<long> invocations = State.InvokeCounts[key];
+
+                long max = 0;
+                long min = long.MaxValue;
+                long sum = 0;
+                foreach (long tick in invocations) {
+                    if (tick > max) { max = tick; }
+                    if (min > tick) { min = tick; }
+                    sum += tick;
+                }
+                long average = sum / invocations.Count;
+                Mod.Log.Info($"  in:{invocations.Count,7:0000000}  av:{average,7:0000000}  ma:{max,7:0000000}  mi:{min,7:0000000}  " +
+                    $"rn:{(max - min),7:0000000}  => {key}");
+            }
+        }
+    }
+
+
     public static class ProfilePatches {
 
         public class Target {
@@ -17,11 +50,12 @@ namespace CleverGirl.Patches {
                 this.method = method;
             }
             public override string ToString() {
-                string typeAndMethod = type.FullName + ":" + method.Name;
+                string typeAndMethod = type.FullName + "::" + method.Name;
 
-                StringBuilder sb = new StringBuilder(":");
+                StringBuilder sb = new StringBuilder("::");
                 foreach (ParameterInfo pi in method.GetParameters()) {
-                    sb.Append(pi.Name);
+                    sb.Append(pi.GetType().Name);
+                    sb.Append(",");
                 }
                 
                 return sb.Length > 1 ? typeAndMethod + sb.ToString() : typeAndMethod;
@@ -44,7 +78,12 @@ namespace CleverGirl.Patches {
             Mod.Log.Info($"Raw methods count: {allMethods.Count}");
 
             List<Target> filteredMethods = allMethods
-                .Where(t => t.type.Name.StartsWith("AI") || t.type.Name.Contains("Node"))
+                .Where(t =>
+                    t.type.Name.StartsWith("Prefer") ||
+                    t.type.Name.StartsWith("Behavior") ||
+                    t.type.Name.Contains("AI") || 
+                    t.type.Name.Contains("Node") ||
+                    t.type.Name.Contains("AttackEvaluator"))
 
                 // 3rd parties
                 .Where(t => !t.type.FullName.StartsWith("AkNodeType"))
@@ -85,6 +124,24 @@ namespace CleverGirl.Patches {
                 .Where(t => !t.method.Name.Contains("MemberwiseClone"))
                 .Where(t => !t.method.Name.Contains("obj_address"))
 
+                // Prevent it so we can log it
+                .Where(t => !t.method.Name.Contains("OnInterruptUpdate"))
+
+                // TODO: Possible Memoize, but currently just log spam
+                .Where(t => !t.method.Name.Contains("IsFriendly"))
+                .Where(t => !t.method.Name.Contains("IsEnemy"))
+                .Where(t => !t.method.Name.Contains("IsNeutral"))
+                .Where(t => !t.method.Name.Contains("Read"))
+                .Where(t => !t.method.Name.Contains("AddChild"))
+                .Where(t => !t.method.Name.Contains("Get2DDistanceBetweenVector3s"))
+
+                .Where(t => !t.method.Name.Contains("LogAI"))
+                .Where(t => !t.method.Name.Contains("MakeBehaviorTreeLogWriter"))
+                .Where(t => !t.method.Name.Contains("GetVariable"))
+
+                .Where(t => !t.method.Name.Contains("get_HeraldryDef"))
+                .Where(t => !t.method.Name.Contains("get_IsLocalPlayer"))
+
                 // Unity methods
                 .Where(t => !t.method.Name.Contains("GetComponents"))
                 .Where(t => !t.method.Name.Contains("GetInstanceID"))
@@ -93,8 +150,8 @@ namespace CleverGirl.Patches {
             Mod.Log.Info($"FilteredMethods count: {filteredMethods.Count}");
 
             foreach (Target target in filteredMethods) {
-                //Mod.Log.Info($"  Wrapping method: ({target.ToString()})");
-                if (!target.method.IsGenericMethod && !target.method.IsAbstract && !target.method.IsVirtual 
+                Mod.Log.Trace($"  Potential wrappable method: ({target.ToString()})");
+                if (!target.method.IsGenericMethod && !target.method.IsAbstract 
                     && ((target.method.GetMethodImplementationFlags() & MethodImplAttributes.InternalCall) == 0)
                     ) { 
                     var hPrefix = new HarmonyMethod(prefix);
@@ -115,11 +172,21 @@ namespace CleverGirl.Patches {
             ProfilePatches.Target target = new ProfilePatches.Target(__originalMethod.DeclaringType, __originalMethod);
             __state = new ExecState(target);
             __state.Start();
+            State.StackDepth++;
         }
 
-        public static void Postfix(ref ExecState __state) {
+        public static void Postfix(ref ExecState __state, Object __instance) {
             //Mod.Log.Info($"POSTFIX: {__state.name}");
-            if (__state != null) { __state.Stop(); }
+            if (State.StackDepth > 0) { State.StackDepth--; }
+            if (__state != null) {
+                __state.Stop(__instance);
+
+                // Increment our counter
+                if (!State.InvokeCounts.ContainsKey(__state.target.ToString())) {
+                    State.InvokeCounts[__state.target.ToString()] = new List<long>();
+                }
+                State.InvokeCounts[__state.target.ToString()].Add(__state.stopWatch.ElapsedTicks);
+            }
         }
     }
 
@@ -133,12 +200,26 @@ namespace CleverGirl.Patches {
         }
 
         public void Start() {
+            string spaces = new string('=', State.StackDepth);
+            Mod.Log.Trace($" {spaces} {target.ToString()} entered");
             stopWatch.Start();
+
         }
 
-        public void Stop() {
+        public void Stop(Object instance) {
             stopWatch.Stop();
-            Mod.Log.Info($"{target.ToString()} took {stopWatch.ElapsedTicks}tick");
+
+            string spaces = new string('=', State.StackDepth);
+            if (target.type.Name == "BehaviorNode") {
+                // Pull out the BehaviorNode name for easier traversing of tree
+                BehaviorNode bn = instance as BehaviorNode;
+                Traverse bnT = Traverse.Create(bn).Field("name");
+                string bnName = bnT.GetValue<string>();
+
+                Mod.Log.Trace($" {spaces} BehaviorNode:{bnName} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
+            } else {
+                Mod.Log.Trace($" {spaces} {target.ToString()} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
+            }
         }
 
     }

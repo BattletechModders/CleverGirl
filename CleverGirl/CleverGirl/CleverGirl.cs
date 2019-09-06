@@ -40,9 +40,12 @@ namespace CleverGirl {
             Log.Info($"mergedConfig is:{Mod.Config}");
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
+
+            // Patch for logging before all others as it's a non-interfering prefix
+            ProfilePatches.PatchAllMethods(harmony);
+
             harmony.PatchAll(asm);
 
-            ProfilePatches.PatchAllMethods(harmony);
         }
     }
 }
