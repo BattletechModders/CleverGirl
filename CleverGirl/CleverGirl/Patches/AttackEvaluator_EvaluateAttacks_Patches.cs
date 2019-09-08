@@ -50,7 +50,7 @@ namespace CleverGirl.Patches {
 
             Mech targetMech = target as Mech;
             bool targetIsEvasive = targetMech != null && targetMech.IsEvasive;
-            List<List<Weapon>>[] array2 = new List<List<Weapon>>[3];
+            List<List<CondensedWeapon>>[] array2 = new List<List<CondensedWeapon>>[3];
 
             float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
 
@@ -70,7 +70,7 @@ namespace CleverGirl.Patches {
                 if (AttackEvaluatorHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
 
                     // Generate base list
-                    List<List<Weapon>> meleeWeaponSets = null;
+                    List<List<CondensedWeapon>> meleeWeaponSets = null;
                     if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
                         meleeWeaponSets = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.MeleeWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
                     } else {
@@ -78,8 +78,9 @@ namespace CleverGirl.Patches {
                     }
 
                     // Add melee weapons to each set
+                    CondensedWeapon cMeleeWeapon = new CondensedWeapon(attackerMech.MeleeWeapon);
                     for (int i = 0; i < meleeWeaponSets.Count; i++) {
-                        meleeWeaponSets[i].Add(attackerMech.MeleeWeapon);
+                        meleeWeaponSets[i].Add(cMeleeWeapon);
                     }
 
                     array2[1] = meleeWeaponSets;
@@ -94,7 +95,7 @@ namespace CleverGirl.Patches {
 
                 // TODO: Check Retaliation
 
-                List<List<Weapon>> dfaWeaponSets = null;
+                List<List<CondensedWeapon>> dfaWeaponSets = null;
                 if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
                     dfaWeaponSets = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.DFAWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
                 } else {
@@ -102,20 +103,21 @@ namespace CleverGirl.Patches {
                 }
 
                 // Add DFA weapons to each set
+                CondensedWeapon cDFAWeapon = new CondensedWeapon(attackerMech.DFAWeapon);
                 for (int i = 0; i < dfaWeaponSets.Count; i++) {
-                    dfaWeaponSets[i].Add(attackerMech.DFAWeapon);
+                    dfaWeaponSets[i].Add(cDFAWeapon);
                 }
 
                 array2[2] = dfaWeaponSets;
             }
 
-            List<AttackEvaluator.AttackEvaluation> list = AttackEvaluator.AttackEvaluation.EvaluateAttacks(attackerAA, target, array2, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            List<AttackEvaluation> list = AttackEvaluatorHelper.EvaluateAttacks(attackerAA, target, array2, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
             Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
             for (int m = 0; m < list.Count; m++) {
-                AttackEvaluator.AttackEvaluation attackEvaluation = list[m];
+                AttackEvaluation attackEvaluation = list[m];
                 Mod.Log.Debug(string.Format("evaluated attack of type {0} with {1} weapons and a result of {2}", attackEvaluation.AttackType, attackEvaluation.WeaponList.Count, attackEvaluation.ExpectedDamage));
                 switch (attackEvaluation.AttackType) {
                     case AIUtil.AttackType.Shooting:
@@ -232,87 +234,6 @@ namespace CleverGirl.Patches {
             order = null;
             return 0f;
         }
-    }
-
-    [HarmonyPatch(typeof(AttackEvaluation), "EvaluateAttacks")]
-    public static class AttackEvaluation_EvaluateAttacks {
-
-        public static bool Prefix(AbstractActor unit, ICombatant target, List<List<Weapon>>[] weaponSetListByAttack,
-            Vector3 attackPosition, Vector3 targetPosition, bool targetIsEvasive, ref List<AttackEvaluator.AttackEvaluation> __result) {
-
-
-            ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
-
-            // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support
-            for (int i = 0; i < 3; i++) {
-                List<List<Weapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
-                if (weaponSetsByAttackType != null) {
-
-                    ConcurrentQueue<List<Weapon>> workQueue = new ConcurrentQueue<List<Weapon>>();
-                    for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
-                        workQueue.Enqueue(weaponSetsByAttackType[j]);
-                    }
-
-                    void evaluateWeaponSet() {
-                        Mod.Log.Debug($" New action started.");
-                        SpinWait spin = new SpinWait();
-                        while (true) {
-
-                            if (workQueue.TryDequeue(out List<Weapon> weaponSet)) {
-                                AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
-                                attackEvaluation.WeaponList = weaponSet;
-                                attackEvaluation.AttackType = (AIUtil.AttackType)i;
-                                attackEvaluation.HeatGenerated = (float)AIUtil.HeatForAttack(weaponSet);
-
-                                if (unit is Mech mech) {
-                                    attackEvaluation.HeatGenerated += (float)mech.TempHeat;
-                                    attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
-                                }
-
-                                attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponSet, target, attackPosition, targetPosition, true, unit);
-                                attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponSet, target, attackPosition, targetPosition, targetIsEvasive);
-                                allResults.Add(attackEvaluation);
-                                Mod.Log.Debug($"Processed a weaponSet, {workQueue.Count} remaining");
-                            } else {
-                                Mod.Log.Debug($"Failed to dequeue, {workQueue.Count} remaining");
-                                if (workQueue.Count == 0) { break; } 
-                                else { spin.SpinOnce(); }
-                            }
-                        }
-                        Mod.Log.Debug($" New action ending.");
-                    };
-                    Parallel.Invoke(evaluateWeaponSet, evaluateWeaponSet, evaluateWeaponSet);
-
-                    //for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
-                    //    List<Weapon> weaponList = weaponSetsByAttackType[j];
-                    //    AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
-                    //    attackEvaluation.WeaponList = weaponList;
-                    //    attackEvaluation.AttackType = (AIUtil.AttackType)i;
-                    //    attackEvaluation.HeatGenerated = (float)AIUtil.HeatForAttack(weaponList);
-
-                    //    if (unit is Mech mech) {
-                    //        attackEvaluation.HeatGenerated += (float)mech.TempHeat;
-                    //        attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
-                    //    }
-
-                    //    attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponList, target, attackPosition, targetPosition, true, unit);
-                    //    attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
-                    //    allResults.Add(attackEvaluation);
-                    //}
-                }
-            }
-
-            List<AttackEvaluator.AttackEvaluation> sortedResults = new List<AttackEvaluator.AttackEvaluation>();
-            sortedResults.AddRange(allResults);
-            sortedResults.Sort((AttackEvaluator.AttackEvaluation a, AttackEvaluator.AttackEvaluation b) => a.ExpectedDamage.CompareTo(b.ExpectedDamage));
-            sortedResults.Reverse();
-            __result = sortedResults;
-
-            return false;
-        }
-
-
-      
     }
 
 }

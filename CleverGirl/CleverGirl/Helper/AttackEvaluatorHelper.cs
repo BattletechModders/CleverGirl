@@ -1,22 +1,30 @@
 ﻿using BattleTech;
-using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using UnityEngine;
+using static AttackEvaluator;
 
 namespace CleverGirl {
 
-    public class CondensedWeapon : Weapon {
-        public int weaponCount = 0;
+    // A condensed weapon masquerades as the parent weapon, but keeps a list of all the 'real' weapons     
+    public class CondensedWeapon {
+        public int weaponsCondensed = 0;
+        public List<Weapon> condensedWeapons = new List<Weapon>();
 
-        public CondensedWeapon() : base() {}
-        public CondensedWeapon(Mech parent, CombatGameState combat, MechComponentRef mcRef, string UID) : 
-            base(parent, combat, mcRef, UID) { }
-        public CondensedWeapon(Vehicle parent, CombatGameState combat, VehicleComponentRef vcRef, string UID) : 
-            base(parent, combat, vcRef, UID) { }
-        public CondensedWeapon(Turret parent, CombatGameState combat, TurretComponentRef tcRef, string UID) :
-            base(parent, combat, tcRef, UID) { }
+        public CondensedWeapon() {}
+        public CondensedWeapon(Weapon weapon) {
+            AddWeapon(weapon);
+        }
+
+        // Invoke this after construction and every time you want to aggregate a weapon
+        public void AddWeapon(Weapon weapon) {
+            weaponsCondensed++;
+            this.condensedWeapons.Add(weapon);
+        }
+
+        public Weapon First {
+            get { return this.condensedWeapons[0]; }
+        }
     }
 
     public class CandidateWeapons {
@@ -27,52 +35,126 @@ namespace CleverGirl {
         readonly private Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
 
         public CandidateWeapons(AbstractActor attacker, ICombatant target) {
-            float positionDelta = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
             for (int i = 0; i < attacker.Weapons.Count; i++) {
                 Weapon weapon = attacker.Weapons[i];
-                CondensedWeapon cWeapon;
-                if (attacker is Mech) {
-                    cWeapon = new CondensedWeapon(weapon.parent as Mech, attacker.Combat, weapon.mechComponentRef, weapon.uid);
-                } else if (attacker is Vehicle) {
-                    cWeapon = new CondensedWeapon(weapon.parent as Vehicle, attacker.Combat, weapon.vehicleComponentRef, weapon.uid);
+
+                CondensedWeapon cWeapon = new CondensedWeapon(weapon);
+
+                if (cWeapon.First.CanFire) {
+                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) is a candidate, adding");
+                    string cWepKey = cWeapon.First.weaponDef.Description.Id;
+                    if (condensed.ContainsKey(cWepKey)) {
+                        condensed[cWepKey].AddWeapon(weapon);
+                    } else {
+                        condensed[cWepKey] = cWeapon;
+                    }
                 } else {
-                    cWeapon = new CondensedWeapon(weapon.parent as Turret, attacker.Combat, weapon.turretComponentRef, weapon.uid);
-                }
-                string cWepKey = cWeapon.weaponDef.Description.Id;
-                if (condensed.ContainsKey(cWepKey)) {
-                    condensed[cWepKey].weaponCount++;
-                } else {
-                    condensed[cWepKey] = cWeapon;
+                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) is disabled or out of ammo, skipping.");
                 }
             }
 
+            // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
+
+            float positionDelta = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
             foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
                 CondensedWeapon cWeapon = kvp.Value;
-                if (cWeapon.CanFire) {
-                    bool willFireAtTarget = cWeapon.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
-                    bool withinRange = positionDelta <= cWeapon.MaxRange;
-                    if (willFireAtTarget && withinRange) {
-                        Mod.Log.Debug($" adding weapon: ({cWeapon.defId}) to ranged set");
-                        RangedWeapons.Add(cWeapon);
-                    } else {
-                        Mod.Log.Debug($" weapon: ({cWeapon.defId}) out of range or has not LOF, skipping.");
-                    }
-
-                    if (cWeapon.Category == WeaponCategory.AntiPersonnel) {
-                        Mod.Log.Debug($" adding support weapon: ({cWeapon.defId}) to melee and DFA attacks.");
-                        MeleeWeapons.Add(cWeapon);
-                        DFAWeapons.Add(cWeapon);
-                    }
-
+                bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
+                bool withinRange = positionDelta <= cWeapon.First.MaxRange;
+                if (willFireAtTarget && withinRange) {
+                    Mod.Log.Debug($" adding weapon: ({cWeapon.First.defId}) to ranged set");
+                    RangedWeapons.Add(cWeapon);
                 } else {
-                    Mod.Log.Debug($" weapon: ({cWeapon.defId}) is disabled or out of ammo, skipping.");
+                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) out of range or has no LOF, skipping.");
+                }
+
+                if (cWeapon.First.Category == WeaponCategory.AntiPersonnel) {
+                    Mod.Log.Debug($" adding support weapon: ({cWeapon.First.defId}) to melee and DFA attacks.");
+                    MeleeWeapons.Add(cWeapon);
+                    DFAWeapons.Add(cWeapon);
                 }
             }
-
         }
     }
 
     public static class AttackEvaluatorHelper {
+
+        public static List<AttackEvaluation> EvaluateAttacks(AbstractActor unit, ICombatant target, 
+            List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
+            bool targetIsEvasive) {
+
+            ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
+
+            // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support
+            for (int i = 0; i < 3; i++) {
+                List<List<CondensedWeapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
+                if (weaponSetsByAttackType != null) {
+
+                    //ConcurrentQueue<List<CondensedWeapon>> workQueue = new ConcurrentQueue<List<CondensedWeapon>>();
+                    //for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
+                    //    workQueue.Enqueue(weaponSetsByAttackType[j]);
+                    //}
+
+                    //void evaluateWeaponSet() {
+                    //    Mod.Log.Debug($" New action started.");
+                    //    SpinWait spin = new SpinWait();
+                    //    while (true) {
+
+                    //        if (workQueue.TryDequeue(out List<Weapon> weaponSet)) {
+                    //            AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
+                    //            attackEvaluation.WeaponList = weaponSet;
+                    //            attackEvaluation.AttackType = (AIUtil.AttackType)i;
+                    //            attackEvaluation.HeatGenerated = (float)AIUtil.HeatForAttack(weaponSet);
+
+                    //            if (unit is Mech mech) {
+                    //                attackEvaluation.HeatGenerated += (float)mech.TempHeat;
+                    //                attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
+                    //            }
+
+                    //            attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponSet, target, attackPosition, targetPosition, true, unit);
+                    //            attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponSet, target, attackPosition, targetPosition, targetIsEvasive);
+                    //            allResults.Add(attackEvaluation);
+                    //            Mod.Log.Debug($"Processed a weaponSet, {workQueue.Count} remaining");
+                    //        } else {
+                    //            Mod.Log.Debug($"Failed to dequeue, {workQueue.Count} remaining");
+                    //            if (workQueue.Count == 0) { break; } else { spin.SpinOnce(); }
+                    //        }
+                    //    }
+                    //    Mod.Log.Debug($" New action ending.");
+                    //};
+                    //Parallel.Invoke(evaluateWeaponSet, evaluateWeaponSet, evaluateWeaponSet);
+
+                    for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
+                        List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
+                        AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
+                        attackEvaluation.AttackType = (AIUtil.AttackType)i;
+                        attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
+
+                        if (unit is Mech mech) {
+                            attackEvaluation.HeatGenerated += (float)mech.TempHeat;
+                            attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
+                        }
+
+                        attackEvaluation.ExpectedDamage = AIHelper.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponList, target, attackPosition, targetPosition, true, unit);
+                        attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
+
+                        // Expand the list to all weaponDefs, not our condensed ones
+                        List<Weapon> aeWeaponList = new List<Weapon>();
+                        foreach (CondensedWeapon cWeapon in weaponList) {
+                            aeWeaponList.AddRange(cWeapon.condensedWeapons);
+                        }
+                        attackEvaluation.WeaponList = aeWeaponList;
+                        allResults.Add(attackEvaluation);
+                    }
+                }
+            }
+
+            List<AttackEvaluator.AttackEvaluation> sortedResults = new List<AttackEvaluator.AttackEvaluation>();
+            sortedResults.AddRange(allResults);
+            sortedResults.Sort((AttackEvaluator.AttackEvaluation a, AttackEvaluator.AttackEvaluation b) => a.ExpectedDamage.CompareTo(b.ExpectedDamage));
+            sortedResults.Reverse();
+
+            return sortedResults;
+        }
 
 
         public static bool MeleeDamageOutweighsRisk(Mech attacker, ICombatant target) {
@@ -101,38 +183,35 @@ namespace CleverGirl {
         // === CLONE METHODS BELOW ==
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
-        public static List<List<Weapon>> MakeWeaponSets(List<Weapon> potentialWeapons) {
-            List<List<Weapon>> list = new List<List<Weapon>>();
+        public static List<List<CondensedWeapon>> MakeWeaponSets(List<CondensedWeapon> potentialWeapons) {
+            List<List<CondensedWeapon>> list = new List<List<CondensedWeapon>>();
             if (potentialWeapons.Count > 0) {
-                Weapon item = potentialWeapons[0];
-                List<Weapon> range = potentialWeapons.GetRange(1, potentialWeapons.Count - 1);
-                List<List<Weapon>> list2 = MakeWeaponSets(range);
+                CondensedWeapon item = potentialWeapons[0];
+                List<CondensedWeapon> range = potentialWeapons.GetRange(1, potentialWeapons.Count - 1);
+                List<List<CondensedWeapon>> list2 = MakeWeaponSets(range);
                 for (int i = 0; i < list2.Count; i++) {
-                    List<Weapon> list3 = list2[i];
+                    List<CondensedWeapon> list3 = list2[i];
                     list.Add(list3);
-                    list.Add(new List<Weapon>(list3)
-                    {
-                    item
-                });
+                    list.Add(new List<CondensedWeapon>(list3) { item });
                 }
             } else {
-                List<Weapon> item2 = new List<Weapon>();
+                List<CondensedWeapon> item2 = new List<CondensedWeapon>();
                 list.Add(item2);
             }
             return list;
         }
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
-        public static List<List<Weapon>> MakeWeaponSetsForEvasive(List<Weapon> potentialWeapons, float toHitFrac, ICombatant target, Vector3 shooterPosition) {
-            List<Weapon> list = new List<Weapon>();
-            List<Weapon> list2 = new List<Weapon>();
-            List<Weapon> list3 = new List<Weapon>();
+        public static List<List<CondensedWeapon>> MakeWeaponSetsForEvasive(List<CondensedWeapon> potentialWeapons, float toHitFrac, ICombatant target, Vector3 shooterPosition) {
+            List<CondensedWeapon> list = new List<CondensedWeapon>();
+            List<CondensedWeapon> list2 = new List<CondensedWeapon>();
+            List<CondensedWeapon> list3 = new List<CondensedWeapon>();
             for (int i = 0; i < potentialWeapons.Count; i++) {
-                Weapon weapon = potentialWeapons[i];
-                if (weapon.CanFire) {
-                    float toHitFromPosition = weapon.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
+                CondensedWeapon weapon = potentialWeapons[i];
+                if (weapon.First.CanFire) {
+                    float toHitFromPosition = weapon.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
                     if (toHitFromPosition < toHitFrac) {
-                        if (weapon.AmmoCategory == AmmoCategory.NotSet) {
+                        if (weapon.First.AmmoCategory == AmmoCategory.NotSet) {
                             list2.Add(weapon);
                         } else {
                             list3.Add(weapon);
@@ -143,11 +222,11 @@ namespace CleverGirl {
                 }
             }
             float num = float.MinValue;
-            Weapon weapon2 = null;
+            CondensedWeapon weapon2 = null;
             for (int j = 0; j < list2.Count; j++) {
-                Weapon weapon3 = list2[j];
-                float toHitFromPosition2 = weapon3.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
-                float num2 = toHitFromPosition2 * (float)weapon3.ShotsWhenFired * weapon3.DamagePerShot;
+                CondensedWeapon weapon3 = list2[j];
+                float toHitFromPosition2 = weapon3.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
+                float num2 = toHitFromPosition2 * (float)weapon3.First.ShotsWhenFired * weapon3.First.DamagePerShot;
                 if (num2 > num) {
                     num = num2;
                     weapon2 = weapon3;
@@ -155,9 +234,9 @@ namespace CleverGirl {
             }
             if (weapon2 == null) {
                 for (int k = 0; k < list3.Count; k++) {
-                    Weapon weapon4 = list3[k];
-                    float toHitFromPosition3 = weapon4.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
-                    float num3 = toHitFromPosition3 * (float)weapon4.ShotsWhenFired * weapon4.DamagePerShot;
+                    CondensedWeapon weapon4 = list3[k];
+                    float toHitFromPosition3 = weapon4.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
+                    float num3 = toHitFromPosition3 * (float)weapon4.First.ShotsWhenFired * weapon4.First.DamagePerShot;
                     if (num3 > num) {
                         num = num3;
                         weapon2 = weapon4;
