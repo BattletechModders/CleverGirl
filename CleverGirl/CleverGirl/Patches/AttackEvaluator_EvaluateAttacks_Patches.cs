@@ -1,9 +1,7 @@
 ﻿using BattleTech;
 using Harmony;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 using us.frostraptor.modUtils;
 using static AttackEvaluator;
@@ -15,10 +13,18 @@ namespace CleverGirl.Patches {
 
         public static bool Prefix(AbstractActor unit, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order, ref float __result) {
 
-            AIHelper.ResetBehaviorCache();
+            try {
+                Mod.Log.Info("AE:MAOFT entered.");
+                AIHelper.ResetBehaviorCache();
+                __result = Original(unit, target, enemyUnitIndex, isStationary, out BehaviorTreeResults innerBTR);
+                order = innerBTR;
+            } catch (Exception e) {
+                Mod.Log.Error("Failed to modify AttackOrder evaluation due to error: " + e.Message);
+                Mod.Log.Error($"  Source:{e.Source}  StackTrace:{e.StackTrace}");
 
-            __result = Original(unit, target, enemyUnitIndex, isStationary, out BehaviorTreeResults innerBTR);
-            order = innerBTR;
+                order = null;
+                return true;
+            }
 
             return false;
         }
@@ -36,8 +42,8 @@ namespace CleverGirl.Patches {
             float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
             float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech); ;
             Mod.Log.Debug($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
-            float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
 
+            float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
             float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
             float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
@@ -50,21 +56,23 @@ namespace CleverGirl.Patches {
 
             Mech targetMech = target as Mech;
             bool targetIsEvasive = targetMech != null && targetMech.IsEvasive;
-            List<List<CondensedWeapon>>[] array2 = new List<List<CondensedWeapon>>[3];
-
+            List<List<CondensedWeapon>>[] weaponSetsByAttackType = {
+                new List<List<CondensedWeapon>>() { }, new List<List<CondensedWeapon>>() { }, new List<List<CondensedWeapon>>() { }
+            };
+            
             float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
 
-            // Evaluate ranged attacks
+            // Evaluate ranged attacks 
             if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                array2[0] = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
+                weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
             } else {
-                array2[0] = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
+                weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
             }
 
             // Evaluate melee attacks
             string cannotEngageInMeleeMsg = "";
             if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg)) {
-                Mod.Log.Debug($" attacker cannot melee, or cannot engage due to: {cannotEngageInMeleeMsg}");
+                Mod.Log.Debug($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
             } else {
                 // Check Retaliation
                 if (AttackEvaluatorHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
@@ -83,15 +91,16 @@ namespace CleverGirl.Patches {
                         meleeWeaponSets[i].Add(cMeleeWeapon);
                     }
 
-                    array2[1] = meleeWeaponSets;
+                    weaponSetsByAttackType[1] = meleeWeaponSets;
                 } else {
                     Mod.Log.Debug($" potential melee damage too high, skipping melee.");
                 }
             }
 
             // Evaluate DFA attacks
-            if (attackerMech == null || !!AIUtil.IsDFAAcceptable(attackerMech, target)) {
+            if (attackerMech == null || !AIUtil.IsDFAAcceptable(attackerMech, target)) {
                 Mod.Log.Debug("this unit cannot dfa");
+            } else { 
 
                 // TODO: Check Retaliation
 
@@ -108,10 +117,10 @@ namespace CleverGirl.Patches {
                     dfaWeaponSets[i].Add(cDFAWeapon);
                 }
 
-                array2[2] = dfaWeaponSets;
+                weaponSetsByAttackType[2] = dfaWeaponSets;
             }
 
-            List<AttackEvaluation> list = AttackEvaluatorHelper.EvaluateAttacks(attackerAA, target, array2, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            List<AttackEvaluation> list = AttackEvaluatorHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
             Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;

@@ -199,13 +199,10 @@ namespace CleverGirl {
 
 
         // --- BEHAVIOR VARIABLE BELOW
-        private static ConcurrentDictionary<BehaviorVariableName, BehaviorVariableValue> behVarValCache = 
-            new ConcurrentDictionary<BehaviorVariableName, BehaviorVariableValue>();
-
-        public static void ResetBehaviorCache() { behVarValCache.Clear(); }
+        public static void ResetBehaviorCache() { State.BehaviorVarValuesCache.Clear(); }
 
         public static BehaviorVariableValue GetCachedBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
-            return behVarValCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
+            return State.BehaviorVarValuesCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
         }
 
         public static BehaviorVariableValue GetBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {

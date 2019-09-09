@@ -11,30 +11,33 @@ namespace CleverGirl.Patches {
     [HarmonyPatch(typeof(AITeam), "OnUpdate")]
     public static class AITeam_OnUpdate_Patch {
         public static void Prefix() {
-            Mod.Log.Info("== CLEARING INVOKE COUNTS ==");
-            State.InvokeCounts.Clear();
+            if (Mod.Config.Profile) {
+                Mod.Log.Info("== CLEARING INVOKE COUNTS ==");
+                State.InvokeCounts.Clear();
+            }
         }
 
         public static void Postfix() {
-            Mod.Log.Info("== INVOKE COUNTS ==");
-            var sortedKeys = State.InvokeCounts.Keys.ToList();
-            sortedKeys.Sort();
-            Mod.Log.Info($"  KEY COUNTS - {sortedKeys.Count}");
+            if (Mod.Config.Profile) {
+                Mod.Log.Info("== INVOKE COUNTS ==");
+                var sortedKeys = State.InvokeCounts.Keys.ToList();
+                sortedKeys.Sort();
 
-            foreach (string key in sortedKeys) {
-                List<long> invocations = State.InvokeCounts[key];
+                foreach (string key in sortedKeys) {
+                    List<long> invocations = State.InvokeCounts[key];
 
-                long max = 0;
-                long min = long.MaxValue;
-                long sum = 0;
-                foreach (long tick in invocations) {
-                    if (tick > max) { max = tick; }
-                    if (min > tick) { min = tick; }
-                    sum += tick;
+                    long max = 0;
+                    long min = long.MaxValue;
+                    long sum = 0;
+                    foreach (long tick in invocations) {
+                        if (tick > max) { max = tick; }
+                        if (min > tick) { min = tick; }
+                        sum += tick;
+                    }
+                    long average = sum / invocations.Count;
+                    Mod.Log.Info($"  in:{invocations.Count,7:0000000}  av:{average,7:0000000}  ma:{max,7:0000000}  mi:{min,7:0000000}  " +
+                        $"rn:{(max - min),7:0000000}  => {key}");
                 }
-                long average = sum / invocations.Count;
-                Mod.Log.Info($"  in:{invocations.Count,7:0000000}  av:{average,7:0000000}  ma:{max,7:0000000}  mi:{min,7:0000000}  " +
-                    $"rn:{(max - min),7:0000000}  => {key}");
             }
         }
     }

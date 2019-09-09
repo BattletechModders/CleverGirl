@@ -82,11 +82,17 @@ namespace CleverGirl {
             List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
             bool targetIsEvasive) {
 
+            Mod.Log.Debug($"Evaluating {weaponSetListByAttack?.Length} types of attack.");
             ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
 
             // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support
             for (int i = 0; i < 3; i++) {
+
                 List<List<CondensedWeapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
+                if (i == 0) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} ranged attacks."); }
+                else if (i == 1) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} melee attacks."); }
+                else if (i == 2) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} DFA attacks."); }
+
                 if (weaponSetsByAttackType != null) {
 
                     //ConcurrentQueue<List<CondensedWeapon>> workQueue = new ConcurrentQueue<List<CondensedWeapon>>();
@@ -125,6 +131,7 @@ namespace CleverGirl {
 
                     for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
                         List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
+                        Mod.Log.Debug($"Evaluating {weaponList?.Count} weapons.");
                         AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
                         attackEvaluation.AttackType = (AIUtil.AttackType)i;
                         attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
@@ -138,10 +145,12 @@ namespace CleverGirl {
                         attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
 
                         // Expand the list to all weaponDefs, not our condensed ones
+                        Mod.Log.Debug($"Expanding weapon list for AttackEvaluation");
                         List<Weapon> aeWeaponList = new List<Weapon>();
                         foreach (CondensedWeapon cWeapon in weaponList) {
                             aeWeaponList.AddRange(cWeapon.condensedWeapons);
                         }
+                        Mod.Log.Debug($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");
                         attackEvaluation.WeaponList = aeWeaponList;
                         allResults.Add(attackEvaluation);
                     }

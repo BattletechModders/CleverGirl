@@ -37,12 +37,14 @@ namespace CleverGirl {
 
             Log.Debug($"ModDir is:{modDirectory}");
             Log.Debug($"mod.json settings are:({settingsJSON})");
-            Log.Info($"mergedConfig is:{Mod.Config}");
+            Mod.Config.LogConfig();
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
 
             // Patch for logging before all others as it's a non-interfering prefix
-            ProfilePatches.PatchAllMethods(harmony);
+            if (Mod.Config.Profile) {
+                ProfilePatches.PatchAllMethods(harmony);
+            }
 
             harmony.PatchAll(asm);
 
