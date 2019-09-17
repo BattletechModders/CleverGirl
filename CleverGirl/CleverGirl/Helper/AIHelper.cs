@@ -1,5 +1,6 @@
 ﻿
 using BattleTech;
+using CustAmmoCategories;
 using Harmony;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -165,38 +166,59 @@ namespace CleverGirl {
             // If this is an aggregate weapon and the toHitFromPos isn't multiplied by count, does it make a diff?
             // i.e. this would be (2 * 0.7 * X) => 1.4x per, w/ 8 weapons -> 8 * 1.4 => 11.2
             //   with (8 * 2 * 0.7 * X) => 11.2
+
             float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
+
+#if USE_CAC
+
+            List<WeaponMode> usableModes = CACHelper.UsableModes(cWeapon.First);
+            foreach (WeaponMode wMode in usableModes) {
+                Mod.Log.Info($"Found mode: {wMode.Id}");
+                if (wMode.AOECapable == TripleBoolean.True) {
+                    float AoEDamage = CustomAmmoCategories.getWeaponAOEDamage(cWeapon.First);
+                    float AoEHeat = CustomAmmoCategories.getWeaponAOEHeatDamage(cWeapon.First);
+                    float AoEStability = cWeapon.First.AOEInstability();
+                    Mod.Log.Info($" mode has AOE damage:{AoEDamage}  heat:{AoEHeat}");
+                }
+
+            }
+
+            //AIHelper.TargetsWithinAoE(attacker, target.CurrentPosition, 20.0f,
+            //    out int allyCount, out int neutralCount, out int enemyCount);
+
+            //float collateralDamageEV = weaponDamageEV * (allyCount + neutralCount);
+            //float enemyAOEDamageEV = weaponDamageEV * (enemyCount - 1);
+            //Mod.Log.Debug($"AOE attack - will inflict {collateralDamageEV} on {allyCount} allies and {neutralCount} neutral actors. Inflicts damage {enemyAOEDamageEV} on {enemyCount} enemies.");
+
+            //weaponDamageEV = weaponDamageEV + enemyAOEDamageEV - collateralDamageEV;
+#endif
 
             float aggregateDamageEV = weaponDamageEV * cWeapon.weaponsCondensed;
 
             return aggregateDamageEV;
         }
 
-        public class AggregateWeapon {
-            public Weapon weapon;
-            public int count;
+        public static void TargetsWithinAoE(AbstractActor attacker, Vector3 position, float radius, 
+            out int alliesWithin, out int neutralWithin, out int enemyWithin) {
 
-            public AggregateWeapon(Weapon weapon, int count) {
-                this.weapon = weapon;
-                this.count = count;
-            }
-        }
-
-        public static List<AggregateWeapon> AggregateWeaponList(List<Weapon> allWeapons) {
-            Dictionary<string, AggregateWeapon> aggregates = new Dictionary<string, AggregateWeapon>();
-
-            foreach(Weapon weapon in allWeapons) {
-                if (!aggregates.ContainsKey(weapon.defId)) {
-                    AggregateWeapon aw = new AggregateWeapon(weapon, 1);
-                    aggregates.Add(weapon.defId, aw);
-                } else {
-                    aggregates[weapon.defId].count++;
+            alliesWithin = 0;
+            neutralWithin = 0;
+            enemyWithin = 0;
+            foreach (ICombatant target in attacker.Combat.GetAllLivingCombatants()) {
+                float distance = (target.CurrentPosition - position).magnitude;
+                if (distance <= radius) {
+                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.TeamId, target.team?.GUID);
+                    if (targetHostility == Hostility.ENEMY) {
+                        enemyWithin++;
+                    } else if (targetHostility == Hostility.NEUTRAL) {
+                        neutralWithin++;
+                    } else if (targetHostility == Hostility.FRIENDLY) {
+                        alliesWithin++;
+                    }
                 }
             }
 
-            return aggregates.Select(kvp => kvp.Value).ToList();
         }
-
 
         // --- BEHAVIOR VARIABLE BELOW
         public static void ResetBehaviorCache() { State.BehaviorVarValuesCache.Clear(); }

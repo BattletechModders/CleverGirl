@@ -16,6 +16,7 @@ namespace CleverGirl.Patches {
             try {
                 Mod.Log.Info("AE:MAOFT entered.");
                 AIHelper.ResetBehaviorCache();
+                State.RangeToTargetsAlliesCache.Clear();
                 __result = Original(unit, target, enemyUnitIndex, isStationary, out BehaviorTreeResults innerBTR);
                 order = innerBTR;
             } catch (Exception e) {

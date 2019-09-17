@@ -1,7 +1,13 @@
 ﻿using BattleTech;
+
+#if USE_CAC
+using CustAmmoCategories;
+#endif
+
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
+
 using static AttackEvaluator;
 
 namespace CleverGirl {
@@ -11,9 +17,14 @@ namespace CleverGirl {
         public int weaponsCondensed = 0;
         public List<Weapon> condensedWeapons = new List<Weapon>();
 
+#if USE_CAC
+        public WeaponMode CACWeaponMode = null;
+#endif
+
         public CondensedWeapon() {}
         public CondensedWeapon(Weapon weapon) {
             AddWeapon(weapon);
+
         }
 
         // Invoke this after construction and every time you want to aggregate a weapon
@@ -25,6 +36,7 @@ namespace CleverGirl {
         public Weapon First {
             get { return this.condensedWeapons[0]; }
         }
+
     }
 
     public class CandidateWeapons {
@@ -35,13 +47,15 @@ namespace CleverGirl {
         readonly private Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
 
         public CandidateWeapons(AbstractActor attacker, ICombatant target) {
+            Mod.Log.Debug($"Calculating candidate weapons");
+
             for (int i = 0; i < attacker.Weapons.Count; i++) {
                 Weapon weapon = attacker.Weapons[i];
 
                 CondensedWeapon cWeapon = new CondensedWeapon(weapon);
 
                 if (cWeapon.First.CanFire) {
-                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) is a candidate, adding");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) can fire, adding as candidate");
                     string cWepKey = cWeapon.First.weaponDef.Description.Id;
                     if (condensed.ContainsKey(cWepKey)) {
                         condensed[cWepKey].AddWeapon(weapon);
@@ -49,26 +63,38 @@ namespace CleverGirl {
                         condensed[cWepKey] = cWeapon;
                     }
                 } else {
-                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) is disabled or out of ammo, skipping.");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) is disabled or out of ammo, skipping.");
                 }
             }
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
 
-            float positionDelta = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
+#if USE_CAC
+            // Evaluate CAC ammo boxes if defined.
             foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
                 CondensedWeapon cWeapon = kvp.Value;
+                
+            }
+#endif
+
+            float distance = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
+            Mod.Log.Debug($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
+                $"target: ({target.CurrentPosition})");
+            foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
+                CondensedWeapon cWeapon = kvp.Value;
+                // Evaluate being able to hit the target
                 bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
-                bool withinRange = positionDelta <= cWeapon.First.MaxRange;
+                bool withinRange = distance <= cWeapon.First.MaxRange;
                 if (willFireAtTarget && withinRange) {
-                    Mod.Log.Debug($" adding weapon: ({cWeapon.First.defId}) to ranged set");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
                     RangedWeapons.Add(cWeapon);
                 } else {
-                    Mod.Log.Debug($" weapon: ({cWeapon.First.defId}) out of range or has no LOF, skipping.");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
+                        $"or has no LOF, skipping.");
                 }
 
                 if (cWeapon.First.Category == WeaponCategory.AntiPersonnel) {
-                    Mod.Log.Debug($" adding support weapon: ({cWeapon.First.defId}) to melee and DFA attacks.");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) is anti-personnel, adding to melee and DFA sets.");
                     MeleeWeapons.Add(cWeapon);
                     DFAWeapons.Add(cWeapon);
                 }
@@ -82,7 +108,6 @@ namespace CleverGirl {
             List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
             bool targetIsEvasive) {
 
-            Mod.Log.Debug($"Evaluating {weaponSetListByAttack?.Length} types of attack.");
             ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
 
             // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support

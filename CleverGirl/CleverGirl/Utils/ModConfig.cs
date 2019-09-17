@@ -7,13 +7,17 @@ namespace CleverGirl {
         public bool Trace = false;
         public bool Profile = false;
 
-        public bool CustomAmmoCategoriesDetected = false;
-
         public void LogConfig() {
             Mod.Log.Info("=== MOD CONFIG BEGIN ===");
             Mod.Log.Info($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
-            Mod.Log.Info($" PROFILING -- Enabled:{this.Profile}");
-            Mod.Log.Info($" CAC Detected:{this.CustomAmmoCategoriesDetected}");
+
+#if USE_CAC
+            Mod.Log.Info($" Enabling CustomAmmoCategories tweaks");
+#endif
+#if USE_CC
+            Mod.Log.Info($" Enabling CustomComponents tweaks");
+#endif
+
             Mod.Log.Info("=== MOD CONFIG END ===");
         }
 
