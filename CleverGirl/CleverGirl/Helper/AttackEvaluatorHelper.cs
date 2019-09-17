@@ -245,7 +245,7 @@ namespace CleverGirl {
                 if (weapon.First.CanFire) {
                     float toHitFromPosition = weapon.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
                     if (toHitFromPosition < toHitFrac) {
-                        if (weapon.First.AmmoCategory == AmmoCategory.NotSet) {
+                        if (weapon.First.AmmoCategoryValue.Is_NotSet) {
                             list2.Add(weapon);
                         } else {
                             list3.Add(weapon);
