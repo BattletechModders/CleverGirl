@@ -1,16 +1,16 @@
 {
     "Name": "CleverGirl",
     "Enabled": true,
-    "Version": "0.3.0",
+    "Version": "0.3.1",
     "Description": "Provides little nudges for the AI",
     "Author": "IceRaptor",
     "Website": "https://github.com/IceRaptor/CleverGirl",
     "Contact": "",
     "DLL": "CleverGirl.dll",
-    "DependsOn" : [ ],
-    "OptionallyDependsOn" :  [ "CustomAmmoCategories" ],
+    "DependsOn" : [ "IRBTModUtils" ],
+    "OptionallyDependsOn" :  [ "CustomAmmoCategories", "CustomComponents" ],
     "Settings": {
-        "Debug" : true,
+        "Debug" : false,
         "Trace" : false,
         "Profile" : false
     }

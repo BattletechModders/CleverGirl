@@ -4,6 +4,10 @@ This mod for the [HBS BattleTech](http://battletechgame.com/) attempts to make t
 
 ![Jurassic Part Clever Girl](clever-girl-5b1b38.jpg)
 
+
+
+This mod requires [https://github.com/iceraptor/IRBTModUtils/]. Grab the latest release of __IRBTModUtils__ and extract it in your Mods/ directory alongside of this mod.
+
 ## Changes
 
 Jumping Heat change
