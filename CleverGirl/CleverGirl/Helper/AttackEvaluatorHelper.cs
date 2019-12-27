@@ -93,7 +93,7 @@ namespace CleverGirl {
                         $"or has no LOF, skipping.");
                 }
 
-                if (cWeapon.First.Category == WeaponCategory.AntiPersonnel) {
+                if (cWeapon.First.WeaponCategoryValue.IsSupport) {
                     Mod.Log.Debug($" ({cWeapon.First.defId}) is anti-personnel, adding to melee and DFA sets.");
                     MeleeWeapons.Add(cWeapon);
                     DFAWeapons.Add(cWeapon);
@@ -315,7 +315,7 @@ namespace CleverGirl {
             Mech mech2 = attackingUnit as Mech;
             for (int i = 0; i < evaluatedAttack.WeaponList.Count; i++) {
                 Weapon weapon = evaluatedAttack.WeaponList[i];
-                if (weapon.Category == WeaponCategory.Melee || weapon.Type == WeaponType.Melee || (mech2 != null && (weapon == mech2.DFAWeapon || weapon == mech2.MeleeWeapon))) {
+                if (weapon.WeaponCategoryValue.IsMelee|| weapon.Type == WeaponType.Melee || (mech2 != null && (weapon == mech2.DFAWeapon || weapon == mech2.MeleeWeapon))) {
                     return null;
                 }
             }

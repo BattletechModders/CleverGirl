@@ -26,7 +26,7 @@ namespace CleverGirl {
             foreach (WeaponMode weaponMode in availableModes) {
                 CustomAmmoCategory ammoCategory = CustomAmmoCategories.find(weapon.AmmoCategoryValue.ToString());
                 // The weapon defaults to the base ammo type
-                if (extWeaponDef.AmmoCategory.BaseCategory == weapon.AmmoCategory) { ammoCategory = extWeaponDef.AmmoCategory; }
+                if (extWeaponDef.AmmoCategory.BaseCategory == weapon.AmmoCategoryValue) { ammoCategory = extWeaponDef.AmmoCategory; }
                 // The weapon mode doesn't match the default ammo type, change
                 if (weaponMode.AmmoCategory.Index != ammoCategory.Index) { ammoCategory = weaponMode.AmmoCategory; }
                 // Hardcode the comparison here b/c CustomAmmoCategories.NotSetCustomAmmoCategoty.Index is private 
