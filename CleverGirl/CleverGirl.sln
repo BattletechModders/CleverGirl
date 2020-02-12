@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.421
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.87
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CleverGirl", "CleverGirl\CleverGirl.csproj", "{961D1A37-7133-4B94-BDB1-CCA0FD315F03}"
 EndProject
@@ -13,14 +13,14 @@ Global
 		Vanilla|Any CPU = Vanilla|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.CC+CAC|Any CPU.ActiveCfg = CC+CAC|Any CPU
-		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.CC+CAC|Any CPU.Build.0 = CC+CAC|Any CPU
+		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.CC+CAC|Any CPU.ActiveCfg = Debug|Any CPU
+		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.CC+CAC|Any CPU.Build.0 = Debug|Any CPU
 		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Release|Any CPU.Build.0 = Release|Any CPU
-		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Vanilla|Any CPU.ActiveCfg = Vanilla|Any CPU
-		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Vanilla|Any CPU.Build.0 = Vanilla|Any CPU
+		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Vanilla|Any CPU.ActiveCfg = Release|Any CPU
+		{961D1A37-7133-4B94-BDB1-CCA0FD315F03}.Vanilla|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
