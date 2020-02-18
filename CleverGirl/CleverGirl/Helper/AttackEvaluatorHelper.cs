@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 
 #if USE_CAC
@@ -12,30 +13,6 @@ using UnityEngine;
 using static AttackEvaluator;
 
 namespace CleverGirl {
-
-    // A condensed weapon masquerades as the parent weapon, but keeps a list of all the 'real' weapons     
-    public class CondensedWeapon {
-        public int weaponsCondensed = 0;
-        public List<Weapon> condensedWeapons = new List<Weapon>();
-        public AmmoModePair ammoAndMode;
-
-        public CondensedWeapon() {}
-        public CondensedWeapon(Weapon weapon) {
-            AddWeapon(weapon);
-
-        }
-
-        // Invoke this after construction and every time you want to aggregate a weapon
-        public void AddWeapon(Weapon weapon) {
-            weaponsCondensed++;
-            this.condensedWeapons.Add(weapon);
-        }
-
-        public Weapon First {
-            get { return this.condensedWeapons[0]; }
-        }
-
-    }
 
     public class CandidateWeapons {
         readonly public List<CondensedWeapon> RangedWeapons = new List<CondensedWeapon>();
@@ -53,7 +30,7 @@ namespace CleverGirl {
                 CondensedWeapon cWeapon = new CondensedWeapon(weapon);
 
                 if (cWeapon.First.CanFire) {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) can fire so it's a candidate");
+                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' included");
                     string cWepKey = cWeapon.First.weaponDef.Description.Id;
                     if (condensed.ContainsKey(cWepKey)) {
                         condensed[cWepKey].AddWeapon(weapon);
@@ -61,9 +38,10 @@ namespace CleverGirl {
                         condensed[cWepKey] = cWeapon;
                     }
                 } else {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is disabled or out of ammo, its not a candidate.");
+                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' excluded (disabled or out of ammo)");
                 }
             }
+            Mod.Log.Debug("  -- DONE");
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
 
@@ -164,6 +142,14 @@ namespace CleverGirl {
                         Mod.Log.Debug($"Expanding weapon list for AttackEvaluation");
                         List<Weapon> aeWeaponList = new List<Weapon>();
                         foreach (CondensedWeapon cWeapon in weaponList) {
+                            List<Weapon> cWeapons = cWeapon.condensedWeapons;
+                            if (cWeapon.ammoAndMode != null) {
+                                foreach (Weapon wep in cWeapons) {
+                                    Mod.Log.Debug($" -- Setting ammoMode to: {cWeapon.ammoAndMode.ammoId}_{cWeapon.ammoAndMode.modeId} for weapon: {wep.UIName}");
+                                    CleverGirlHelper.ApplyAmmoMode(wep, cWeapon.ammoAndMode);
+                                }
+                            }
+
                             aeWeaponList.AddRange(cWeapon.condensedWeapons);
                         }
                         Mod.Log.Debug($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");

@@ -1,7 +1,9 @@
 ﻿
 using BattleTech;
+using CleverGirl.Components;
 using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
+using CustomComponents;
 using Harmony;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -190,19 +192,30 @@ namespace CleverGirl {
                     // If target is evasive - weight AoE attacks (since they auto-hit)?
 
                     // Check target damage reduction?
+                    float armorReduction = 0f;
+                    foreach(AmmunitionBox aBox in cWeapon.First.ammoBoxes) {
+                        //Mod.Log.Debug($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
+                        if (aBox.mechComponentRef.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0) {
+                            armorReduction = cgComp.ArmorDamageReduction;
+                        }
+                    }
+                    if (armorReduction != 0f) {
+                        Mod.Log.Debug($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
+                    }
 
                     // Need to precalc some values on every combatant - 
                     //  find objective targets
                     //  heat to cripple / damage / etc
                     //  stability damage to unsteady / to knockdown
-                    //  
+
+                    // TODO: Can we weight AMS as a weapon when it covers friendlies?
 
                     Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
                     if (targetHostility == Hostility.FRIENDLY) { alliedDamage += dprEV; }
                     else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
                     else { enemyDamage += dprEV; }
                 }
-                float damageEV = enemyDamage + neutralDamage - alliedDamage;
+                float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
                 Mod.Log.Debug($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
                 if (damageEV >= maxDamage) {
                     maxDamage = damageEV;
@@ -210,6 +223,7 @@ namespace CleverGirl {
                 }
             }
             Mod.Log.Debug($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+            cWeapon.ammoAndMode = maxDamagePair;
 
             //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
             //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
