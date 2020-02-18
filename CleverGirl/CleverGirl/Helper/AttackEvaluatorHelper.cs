@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using CustAmmoCategories;
 
 #if USE_CAC
 using CustAmmoCategories;
@@ -16,10 +17,7 @@ namespace CleverGirl {
     public class CondensedWeapon {
         public int weaponsCondensed = 0;
         public List<Weapon> condensedWeapons = new List<Weapon>();
-
-#if USE_CAC
-        public WeaponMode CACWeaponMode = null;
-#endif
+        public AmmoModePair ammoAndMode;
 
         public CondensedWeapon() {}
         public CondensedWeapon(Weapon weapon) {
@@ -55,7 +53,7 @@ namespace CleverGirl {
                 CondensedWeapon cWeapon = new CondensedWeapon(weapon);
 
                 if (cWeapon.First.CanFire) {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) can fire, adding as candidate");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) can fire so it's a candidate");
                     string cWepKey = cWeapon.First.weaponDef.Description.Id;
                     if (condensed.ContainsKey(cWepKey)) {
                         condensed[cWepKey].AddWeapon(weapon);
@@ -63,19 +61,11 @@ namespace CleverGirl {
                         condensed[cWepKey] = cWeapon;
                     }
                 } else {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is disabled or out of ammo, skipping.");
+                    Mod.Log.Debug($" ({cWeapon.First.defId}) is disabled or out of ammo, its not a candidate.");
                 }
             }
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
-
-#if USE_CAC
-            // Evaluate CAC ammo boxes if defined.
-            foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
-                CondensedWeapon cWeapon = kvp.Value;
-                
-            }
-#endif
 
             float distance = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
             Mod.Log.Debug($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
@@ -114,9 +104,10 @@ namespace CleverGirl {
             for (int i = 0; i < 3; i++) {
 
                 List<List<CondensedWeapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
-                if (i == 0) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} ranged attacks."); }
-                else if (i == 1) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} melee attacks."); }
-                else if (i == 2) { Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} DFA attacks."); }
+                string attackLabel = "ranged attack";
+                if (i == 1) { attackLabel = "melee attacks"; }
+                if (i == 2) { attackLabel = "DFA attacks"; }
+                Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} {attackLabel}");
 
                 if (weaponSetsByAttackType != null) {
 
@@ -156,7 +147,7 @@ namespace CleverGirl {
 
                     for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
                         List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
-                        Mod.Log.Debug($"Evaluating {weaponList?.Count} weapons.");
+                        Mod.Log.Debug($"Evaluating {weaponList?.Count} weapons for a {attackLabel}");
                         AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
                         attackEvaluation.AttackType = (AIUtil.AttackType)i;
                         attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
@@ -207,7 +198,7 @@ namespace CleverGirl {
 
             // Use the target mech's position, because if we melee the attacker they can probably get to us
             float targetMeleeDam = AIUtil.ExpectedDamageForMeleeAttackUsingUnitsBVs(targetMech, attacker, targetMech.CurrentPosition, targetMech.CurrentPosition, false, attacker);
-            float meleeDamageRatio = targetMeleeDam / attackerMeleeDam;
+            float meleeDamageRatio = attackerMeleeDam / targetMeleeDam;
             float meleeDamageRatioCap = AIHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_MeleeDamageRatioCap).FloatVal;
             Mod.Log.Debug($" meleeDamageRatio: {meleeDamageRatio} = target: {targetMeleeDam} / attacker: {attackerMeleeDam} vs. cap: {meleeDamageRatioCap}");
 
@@ -237,38 +228,43 @@ namespace CleverGirl {
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
         public static List<List<CondensedWeapon>> MakeWeaponSetsForEvasive(List<CondensedWeapon> potentialWeapons, float toHitFrac, ICombatant target, Vector3 shooterPosition) {
-            List<CondensedWeapon> list = new List<CondensedWeapon>();
-            List<CondensedWeapon> list2 = new List<CondensedWeapon>();
-            List<CondensedWeapon> list3 = new List<CondensedWeapon>();
+            List<CondensedWeapon> likelyToHitWeapons = new List<CondensedWeapon>();
+            List<CondensedWeapon> unlikelyNonAmmoWeapons = new List<CondensedWeapon>();
+            List<CondensedWeapon> unlikelyAmmoWeapons = new List<CondensedWeapon>();
+
+            // Separate weapons into likely to hit, and unlikely to hit. Add only a single unlikely to hit weapon to the sets to be created.
+            // TODO: Make this multi-step marginal... don't fire 9% weapons, but do fire 30%?
             for (int i = 0; i < potentialWeapons.Count; i++) {
                 CondensedWeapon weapon = potentialWeapons[i];
                 if (weapon.First.CanFire) {
                     float toHitFromPosition = weapon.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
                     if (toHitFromPosition < toHitFrac) {
                         if (weapon.First.AmmoCategoryValue.Is_NotSet) {
-                            list2.Add(weapon);
+                            unlikelyNonAmmoWeapons.Add(weapon);
                         } else {
-                            list3.Add(weapon);
+                            unlikelyAmmoWeapons.Add(weapon);
                         }
                     } else {
-                        list.Add(weapon);
+                        likelyToHitWeapons.Add(weapon);
                     }
                 }
             }
+
             float num = float.MinValue;
             CondensedWeapon weapon2 = null;
-            for (int j = 0; j < list2.Count; j++) {
-                CondensedWeapon weapon3 = list2[j];
-                float toHitFromPosition2 = weapon3.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
-                float num2 = toHitFromPosition2 * (float)weapon3.First.ShotsWhenFired * weapon3.First.DamagePerShot;
+            for (int j = 0; j < unlikelyNonAmmoWeapons.Count; j++) {
+                CondensedWeapon nonAmmoWeapon = unlikelyNonAmmoWeapons[j];
+                float toHitFromPosition2 = nonAmmoWeapon.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
+                float num2 = toHitFromPosition2 * (float)nonAmmoWeapon.First.ShotsWhenFired * nonAmmoWeapon.First.DamagePerShot;
                 if (num2 > num) {
                     num = num2;
-                    weapon2 = weapon3;
+                    weapon2 = nonAmmoWeapon;
                 }
             }
+
             if (weapon2 == null) {
-                for (int k = 0; k < list3.Count; k++) {
-                    CondensedWeapon weapon4 = list3[k];
+                for (int k = 0; k < unlikelyAmmoWeapons.Count; k++) {
+                    CondensedWeapon weapon4 = unlikelyAmmoWeapons[k];
                     float toHitFromPosition3 = weapon4.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
                     float num3 = toHitFromPosition3 * (float)weapon4.First.ShotsWhenFired * weapon4.First.DamagePerShot;
                     if (num3 > num) {
@@ -277,10 +273,12 @@ namespace CleverGirl {
                     }
                 }
             }
+
             if (weapon2 != null) {
-                list.Add(weapon2);
+                likelyToHitWeapons.Add(weapon2);
             }
-            return MakeWeaponSets(list);
+
+            return MakeWeaponSets(likelyToHitWeapons);
         }
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!

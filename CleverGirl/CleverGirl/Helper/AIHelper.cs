@@ -1,5 +1,6 @@
 ﻿
 using BattleTech;
+using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using Harmony;
 using System.Collections.Concurrent;
@@ -101,10 +102,9 @@ namespace CleverGirl {
             }
         }
 
+        // Calculate the expected value for a given weapon against the target
         private static float CalculateWeaponDamageEV(CondensedWeapon cWeapon, BehaviorTree bTree, AttackParams attackParams,
             AbstractActor attacker, Vector3 attackerPos, ICombatant target, Vector3 targetPos) {
-
-            int shotsWhenFired = cWeapon.First.ShotsWhenFired;
 
             float attackTypeWeight = 1f;
             switch (attackParams.AttackType) {
@@ -147,53 +147,82 @@ namespace CleverGirl {
                 // Breaching shot is assumed to auto-hit... why?
                 toHitFromPos = 1f;
             }
+            Mod.Log.Debug($"Evaluating weapon: {cWeapon.First.Name} with toHitFromPos:{toHitFromPos}");
 
-            float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
-
-            float heatDamPerShotWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal * cWeapon.First.HeatDamagePerShot;
-
-            float stabilityDamPerShotWeight = 0f;
-            if (attackParams.TargetIsUnsteady) {
-                stabilityDamPerShotWeight = cWeapon.First.Instability() * AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
-            }
+            float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
+            float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
 
             float meleeStatusWeights = 0f;
-            meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ?
-                0f : (damagePerShotFromPos * AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal));
-            meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ?
-                0f : (damagePerShotFromPos * AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal));
+            if (attackParams.AttackType == AIUtil.AttackType.Melee) {
+                float bracedMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal;
+                if (attackParams.TargetIsBraced) { meleeStatusWeights += bracedMeleeMulti; }
 
-            // If this is an aggregate weapon and the toHitFromPos isn't multiplied by count, does it make a diff?
-            // i.e. this would be (2 * 0.7 * X) => 1.4x per, w/ 8 weapons -> 8 * 1.4 => 11.2
-            //   with (8 * 2 * 0.7 * X) => 11.2
-
-            float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
-
-#if USE_CAC
-
-            List<WeaponMode> usableModes = CACHelper.UsableModes(cWeapon.First);
-            foreach (WeaponMode wMode in usableModes) {
-                Mod.Log.Info($"Found mode: {wMode.Id}");
-                if (wMode.AOECapable == TripleBoolean.True) {
-                    float AoEDamage = CustomAmmoCategories.getWeaponAOEDamage(cWeapon.First);
-                    float AoEHeat = CustomAmmoCategories.getWeaponAOEHeatDamage(cWeapon.First);
-                    float AoEStability = cWeapon.First.AOEInstability();
-                    Mod.Log.Info($" mode has AOE damage:{AoEDamage}  heat:{AoEHeat}");
-                }
-
+                float evasiveMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
+                if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
             }
 
-            //AIHelper.TargetsWithinAoE(attacker, target.CurrentPosition, 20.0f,
-            //    out int allyCount, out int neutralCount, out int enemyCount);
+            float maxDamage = 0f;
+            AmmoModePair maxDamagePair = null;
+            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
+            foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions) {
+                AmmoModePair ammoModePair = kvp.Key;
+                WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
+                Mod.Log.Debug($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
 
-            //float collateralDamageEV = weaponDamageEV * (allyCount + neutralCount);
-            //float enemyAOEDamageEV = weaponDamageEV * (enemyCount - 1);
-            //Mod.Log.Debug($"AOE attack - will inflict {collateralDamageEV} on {allyCount} allies and {neutralCount} neutral actors. Inflicts damage {enemyAOEDamageEV} on {enemyCount} enemies.");
+                float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
+                foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage) {
+                    float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
+                    // Chance to knockdown... but evasion dump is more valuable?
+                    if (attackParams.TargetIsUnsteady) {
+                        dprEV += dpr.HitsCount * dpr.ToHit * (dpr.Instability * stabToDamRatio);
+                    }
+                    // TODO: If mech, check if if (this._stability > this.UnsteadyThreshold && !base.IsUnsteady), 
+                    // 	num3 *= base.StatCollection.GetValue<float>("ReceivedInstabilityMultiplier");
+                    //  num3 *= base.EntrenchedMultiplier;
+                    // Multiply by number of pips dumped?
 
-            //weaponDamageEV = weaponDamageEV + enemyAOEDamageEV - collateralDamageEV;
-#endif
+                    // TODO: If the mech is overheating, apply different factors than just the raw 'heatToDamRatio'?
+                    // ASSUME CBTBE here?
+                    // Caculate damage from ammo explosion? Calculate potential loss of weapons from shutdown?
 
-            float aggregateDamageEV = weaponDamageEV * cWeapon.weaponsCondensed;
+                    // If melee - apply weights?
+                    // If target is braced / guarded - reduce damage?
+                    // If target is evasive - weight AoE attacks (since they auto-hit)?
+
+                    // Check target damage reduction?
+
+                    // Need to precalc some values on every combatant - 
+                    //  find objective targets
+                    //  heat to cripple / damage / etc
+                    //  stability damage to unsteady / to knockdown
+                    //  
+
+                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
+                    if (targetHostility == Hostility.FRIENDLY) { alliedDamage += dprEV; }
+                    else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
+                    else { enemyDamage += dprEV; }
+                }
+                float damageEV = enemyDamage + neutralDamage - alliedDamage;
+                Mod.Log.Debug($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
+                if (damageEV >= maxDamage) {
+                    maxDamage = damageEV;
+                    maxDamagePair = ammoModePair;
+                }
+            }
+            Mod.Log.Debug($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+
+            //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
+            //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
+            //float stabilityDamPerShotWeight = attackParams.TargetIsUnsteady ? cWeapon.First.Instability() * stabToDamRatio : 0f;
+
+            //float meleeStatusWeights = 0f;
+            //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ? 0f : (damagePerShotFromPos * bracedMeleeMulti));
+            //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ? 0f : (damagePerShotFromPos * evasiveMeleeMult));
+
+            //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
+            //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
+            float aggregateDamageEV = maxDamage * cWeapon.weaponsCondensed;
+            Mod.Log.Debug($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {cWeapon.weaponsCondensed}");
 
             return aggregateDamageEV;
         }
@@ -221,12 +250,11 @@ namespace CleverGirl {
         }
 
         // --- BEHAVIOR VARIABLE BELOW
-        public static void ResetBehaviorCache() { State.BehaviorVarValuesCache.Clear(); }
-
         public static BehaviorVariableValue GetCachedBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
-            return State.BehaviorVarValuesCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
+            return ModState.BehaviorVarValuesCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
         }
 
+        // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE
         public static BehaviorVariableValue GetBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
             BehaviorVariableValue behaviorVariableValue = bTree.unitBehaviorVariables.GetVariable(name);
             if (behaviorVariableValue != null) {

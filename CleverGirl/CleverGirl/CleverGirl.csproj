@@ -53,6 +53,10 @@
     <Reference Include="IRBTModUtils">
       <HintPath>..\..\..\IRBTModUtils\IRBTModUtils\IRBTModUtils\bin\Debug\IRBTModUtils.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\..\Steam\steamapps\common\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -68,18 +72,17 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CleverGirl.cs" />
+    <Compile Include="Analytics\CombatantAnalytics.cs" />
+    <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
     <Compile Include="Helper\AttackEvaluatorHelper.cs" />
-    <Compile Include="Helper\CACHelper.cs" />
-    <Compile Include="Helper\CombatDamageHelper.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
     <Compile Include="Patches\AIUtil_ExpectedDamageForAttack_Patches.cs" />
     <Compile Include="Patches\GenerateJumpMoveCandidatesNodePatch.cs" />
     <Compile Include="Patches\ProfilePatches.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Utils\ModConfig.cs" />
-    <Compile Include="Utils\State.cs" />
+    <Compile Include="ModConfig.cs" />
+    <Compile Include="ModState.cs" />
   </ItemGroup>
   <ItemGroup Condition="$(DefineConstants.Contains('USE_CAC'))">
     <Reference Include="CustomAmmoCategories">

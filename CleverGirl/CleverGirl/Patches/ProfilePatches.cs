@@ -13,18 +13,18 @@ namespace CleverGirl.Patches {
         public static void Prefix() {
             if (Mod.Config.Profile) {
                 Mod.Log.Info("== CLEARING INVOKE COUNTS ==");
-                State.InvokeCounts.Clear();
+                ModState.InvokeCounts.Clear();
             }
         }
 
         public static void Postfix() {
             if (Mod.Config.Profile) {
                 Mod.Log.Info("== INVOKE COUNTS ==");
-                var sortedKeys = State.InvokeCounts.Keys.ToList();
+                var sortedKeys = ModState.InvokeCounts.Keys.ToList();
                 sortedKeys.Sort();
 
                 foreach (string key in sortedKeys) {
-                    List<long> invocations = State.InvokeCounts[key];
+                    List<long> invocations = ModState.InvokeCounts[key];
 
                     long max = 0;
                     long min = long.MaxValue;
@@ -175,20 +175,20 @@ namespace CleverGirl.Patches {
             ProfilePatches.Target target = new ProfilePatches.Target(__originalMethod.DeclaringType, __originalMethod);
             __state = new ExecState(target);
             __state.Start();
-            State.StackDepth++;
+            ModState.StackDepth++;
         }
 
         public static void Postfix(ref ExecState __state, Object __instance) {
             //Mod.Log.Info($"POSTFIX: {__state.name}");
-            if (State.StackDepth > 0) { State.StackDepth--; }
+            if (ModState.StackDepth > 0) { ModState.StackDepth--; }
             if (__state != null) {
                 __state.Stop(__instance);
 
                 // Increment our counter
-                if (!State.InvokeCounts.ContainsKey(__state.target.ToString())) {
-                    State.InvokeCounts[__state.target.ToString()] = new List<long>();
+                if (!ModState.InvokeCounts.ContainsKey(__state.target.ToString())) {
+                    ModState.InvokeCounts[__state.target.ToString()] = new List<long>();
                 }
-                State.InvokeCounts[__state.target.ToString()].Add(__state.stopWatch.ElapsedTicks);
+                ModState.InvokeCounts[__state.target.ToString()].Add(__state.stopWatch.ElapsedTicks);
             }
         }
     }
@@ -203,7 +203,7 @@ namespace CleverGirl.Patches {
         }
 
         public void Start() {
-            string spaces = new string('=', State.StackDepth);
+            string spaces = new string('=', ModState.StackDepth);
             Mod.Log.Trace($" {spaces} {target.ToString()} entered");
             stopWatch.Start();
 
@@ -212,7 +212,7 @@ namespace CleverGirl.Patches {
         public void Stop(Object instance) {
             stopWatch.Stop();
 
-            string spaces = new string('=', State.StackDepth);
+            string spaces = new string('=', ModState.StackDepth);
             if (target.type.Name == "BehaviorNode") {
                 // Pull out the BehaviorNode name for easier traversing of tree
                 BehaviorNode bn = instance as BehaviorNode;

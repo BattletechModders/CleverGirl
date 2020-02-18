@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using CleverGirl.Analytics;
 using Harmony;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,51 @@ using static AttackEvaluator;
 
 namespace CleverGirl.Patches {
 
+    [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrder")]
+    public static class AttackEvaluator_MakeAttackOrder {
+        public static void Prefix(AbstractActor unit) {
+            Mod.Log.Trace("AE:MAO:pre - entered.");
+            ModState.BehaviorVarValuesCache.Clear();
+
+            // Reset the analytics cache
+            ModState.CombatantAnalytics.Clear();
+
+            ModState.CurrentActorAllies.Clear();
+            ModState.CurrentActorNeutrals.Clear();
+            ModState.CurrentActorEnemies.Clear();
+            // Prime the caches with information about all targets
+            Mod.Log.Debug($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
+            foreach (ICombatant combatant in unit.Combat.GetAllImporantCombatants()) {
+                if (combatant.GUID == unit.GUID) { continue; }
+
+                // Will only include alive actors and buildings that are 'tab' targets
+                if (unit.Combat.HostilityMatrix.IsFriendly(unit.team, combatant.team)) {
+                    ModState.CurrentActorAllies[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
+                } else if (unit.Combat.HostilityMatrix.IsEnemy(unit.team, combatant.team)) {
+                    ModState.CurrentActorEnemies[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
+                } else {
+                    ModState.CurrentActorNeutrals[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
+                }
+
+                // Add the combatant to the analytics
+                ModState.CombatantAnalytics[combatant.GUID] = new CombatantAnalytics(combatant);
+
+            }
+
+            // TODO: Evaluate objectives
+            ModState.LocalPlayerEnemyObjective.Clear();
+            ModState.LocalPlayerFriendlyObjective.Clear();
+        }
+
+        public static void Postfix() {
+            Mod.Log.Trace("AE:MAO:post - entered.");
+
+        }
+    }
+
     [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrderForTarget")]
     public static class AttackEvaluator_MakeAttackOrderForTarget {
 
@@ -15,8 +61,8 @@ namespace CleverGirl.Patches {
 
             try {
                 Mod.Log.Info("AE:MAOFT entered.");
-                AIHelper.ResetBehaviorCache();
-                State.RangeToTargetsAlliesCache.Clear();
+
+                //ModState.RangeToTargetsAlliesCache.Clear();
                 __result = Original(unit, target, enemyUnitIndex, isStationary, out BehaviorTreeResults innerBTR);
                 order = innerBTR;
             } catch (Exception e) {
@@ -65,8 +111,10 @@ namespace CleverGirl.Patches {
 
             // Evaluate ranged attacks 
             if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
+                Mod.Log.Debug($"Checking evasive shots against target, needs {evasiveToHitFraction} or higher to be included.");
                 weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
             } else {
+                Mod.Log.Debug($"Checking non-evasive target.");
                 weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
             }
 
