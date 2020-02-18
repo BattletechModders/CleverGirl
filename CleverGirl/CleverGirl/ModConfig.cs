@@ -7,17 +7,14 @@ namespace CleverGirl {
         public bool Trace = false;
         public bool Profile = false;
 
+        public class DecisionWeights {
+            public float FriendlyDamageMulti = 2.0f;
+        }
+        public DecisionWeights Weights = new DecisionWeights();
+
         public void LogConfig() {
             Mod.Log.Info("=== MOD CONFIG BEGIN ===");
             Mod.Log.Info($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
-
-#if USE_CAC
-            Mod.Log.Info($" Enabling CustomAmmoCategories tweaks");
-#endif
-#if USE_CC
-            Mod.Log.Info($" Enabling CustomComponents tweaks");
-#endif
-
             Mod.Log.Info("=== MOD CONFIG END ===");
         }
 

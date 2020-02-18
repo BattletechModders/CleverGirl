@@ -1,4 +1,5 @@
 ﻿using CleverGirl.Patches;
+using CustAmmoCategories;
 using Harmony;
 using Newtonsoft.Json;
 using System;
@@ -41,10 +42,16 @@ namespace CleverGirl {
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
 
+            // Initialize custom components
+            CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
+
             // Patch for logging before all others as it's a non-interfering prefix
             if (Mod.Config.Profile) {
                 ProfilePatches.PatchAllMethods(harmony);
             }
+
+            // Hack to disable CAC processing of AI
+            CustomAmmoCategories.DisableInternalWeaponChoose = true;
 
             harmony.PatchAll(asm);
 
