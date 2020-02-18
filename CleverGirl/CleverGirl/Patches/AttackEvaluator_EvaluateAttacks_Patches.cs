@@ -10,6 +10,7 @@ using static AttackEvaluator;
 namespace CleverGirl.Patches {
 
     [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrder")]
+    [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrder {
         public static void Prefix(AbstractActor unit) {
             Mod.Log.Trace("AE:MAO:pre - entered.");
@@ -55,6 +56,7 @@ namespace CleverGirl.Patches {
     }
 
     [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrderForTarget")]
+    [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrderForTarget {
 
         public static bool Prefix(AbstractActor unit, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order, ref float __result) {
