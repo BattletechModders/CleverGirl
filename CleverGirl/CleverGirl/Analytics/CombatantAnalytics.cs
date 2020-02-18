@@ -6,7 +6,18 @@ namespace CleverGirl.Analytics {
         public CombatantAnalytics(ICombatant combatant) {
             
             if (combatant is Building) { isBuilding = true; } 
-            else if (combatant is Mech) { isMech = true; } 
+            else if (combatant is Mech cMech) { 
+                isMech = true;
+
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.Head);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.CenterTorso);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.LeftArm);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.LeftTorso);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.LeftLeg);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.RightArm);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.RightTorso);
+                TotalArmor += cMech.GetCurrentArmor(ArmorLocation.RightLeg);
+            } 
             else if (combatant is Turret) { isTurret = true; } 
             else if (combatant is Vehicle) { isVehicle = true; }
 
@@ -37,7 +48,7 @@ namespace CleverGirl.Analytics {
         public int HeatToLethalAmmoExplosion = 0;
         public int HeatToShutdown = 150;
 
-        public float Armor = 0f;
+        public float TotalArmor = 0f;
         public float TotalArmorRatio = 0f;
         public float CriticalArmorRatio = 0f;
 
