@@ -195,7 +195,7 @@ namespace CleverGirl {
                     float armorReduction = 0f;
                     foreach(AmmunitionBox aBox in cWeapon.First.ammoBoxes) {
                         //Mod.Log.Debug($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
-                        if (aBox.ammoDef.Is.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0) {
+                        if (aBox.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0) {
                             armorReduction = cgComp.ArmorDamageReduction;
                         }
                     }
