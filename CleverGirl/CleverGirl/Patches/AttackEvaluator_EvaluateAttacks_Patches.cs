@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using CleverGirl.Analytics;
+using CleverGirl.Helper;
 using Harmony;
 using System;
 using System.Collections.Generic;
@@ -12,46 +13,86 @@ namespace CleverGirl.Patches {
     [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrder")]
     [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrder {
-        public static void Prefix(AbstractActor unit) {
-            Mod.Log.Trace("AE:MAO:pre - entered.");
-            ModState.BehaviorVarValuesCache.Clear();
-
-            // Reset the analytics cache
-            ModState.CombatantAnalytics.Clear();
-
-            ModState.CurrentActorAllies.Clear();
-            ModState.CurrentActorNeutrals.Clear();
-            ModState.CurrentActorEnemies.Clear();
-            // Prime the caches with information about all targets
-            Mod.Log.Debug($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
-            foreach (ICombatant combatant in unit.Combat.GetAllImporantCombatants()) {
-                if (combatant.GUID == unit.GUID) { continue; }
-
-                // Will only include alive actors and buildings that are 'tab' targets
-                if (unit.Combat.HostilityMatrix.IsFriendly(unit.team, combatant.team)) {
-                    ModState.CurrentActorAllies[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
-                } else if (unit.Combat.HostilityMatrix.IsEnemy(unit.team, combatant.team)) {
-                    ModState.CurrentActorEnemies[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
-                } else {
-                    ModState.CurrentActorNeutrals[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
-                }
-
-                // Add the combatant to the analytics
-                ModState.CombatantAnalytics[combatant.GUID] = new CombatantAnalytics(combatant);
-
+        // WARNING: Replaces the existing logic 
+        public static bool Prefix(AbstractActor unit, bool isStationary, ref BehaviorTreeResults __result) {
+            // If there is no unit, exit immediately
+            if (unit == null) {
+                __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
+                return false;
             }
 
-            // TODO: Evaluate objectives
-            ModState.LocalPlayerEnemyObjective.Clear();
-            ModState.LocalPlayerFriendlyObjective.Clear();
-        }
+            // If there are no enemies, exit immediately
+            if (unit.BehaviorTree.enemyUnits.Count == 0) {
+                Mod.Log.Info("No important enemy units, skipping decision making.");
+                __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
+                return false;
+            }
 
-        public static void Postfix() {
-            Mod.Log.Trace("AE:MAO:post - entered.");
+            // Initialize decision data caches
+            AEHelper.InitializeAttackOrderDecisionData(unit);
+            
+            Mod.Log.Debug($" == Evaluating attack from unit: {CombatantUtils.Label(unit)} at pos: {unit.CurrentPosition} against {unit.BehaviorTree.enemyUnits.Count} enemies.");
+            BehaviorTreeResults behaviorTreeResults = null;
+            AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
 
+            float desTargDamage = 0f;
+            float desTargFirepowerReduction = 0f;
+            if (designatedTarget != null) {
+                desTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out behaviorTreeResults);
+                desTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, designatedTarget, designatedTarget.CurrentPosition, designatedTarget.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
+                Mod.Log.Debug($"  DesignatedTarget: {CombatantUtils.Label(designatedTarget)} will suffer: {desTargDamage} damage and lose: {desTargFirepowerReduction} firepower from attack.");
+            } else {
+                Mod.Log.Debug("  No designated target identified.");
+            }
+
+            float behavior1 = AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
+            float opportunityFireThreshold = 1f + (behavior1 / 100f);
+
+            float behavior2 = AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
+            float opportunityFireTakeawayThreshold = 1f + (behavior2 / 100f);
+            Mod.Log.Info($"  Opportunity Fire damageThreshold: {opportunityFireThreshold}  takeawayThreshold: {opportunityFireTakeawayThreshold}");
+
+            // Walk through every alive enemy, and see if a better shot presents itself.
+            for (int j = 0; j < unit.BehaviorTree.enemyUnits.Count; j++) {
+                ICombatant combatant = unit.BehaviorTree.enemyUnits[j];
+                if (combatant == designatedTarget || combatant.IsDead) { continue; }
+
+                Mod.Log.Debug($"  Checking opportunity fire against target: {CombatantUtils.Label(combatant)}");
+
+                AbstractActor opportunityFireTarget = combatant as AbstractActor;
+                BehaviorTreeResults oppTargAttackOrder;
+                float oppTargDamage = AOHelper.MakeAttackOrderForTarget(unit, combatant, isStationary, out oppTargAttackOrder);
+                float oppTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, combatant, combatant.CurrentPosition, combatant.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
+                Mod.Log.Debug($"  Target will suffer: {oppTargDamage} with firepower reduction: {oppTargFirepowerReduction}");
+
+                // TODO: Was where opportunity cost from evasion strip was added to target damage.
+                //  Reintroduce utility damage to this calculation
+
+                bool exceedsOpportunityFireThreshold = oppTargDamage > desTargDamage * opportunityFireThreshold;
+                Mod.Log.Debug($"  Comparing damage - opportunity: {oppTargDamage} > designated: {designatedTarget} * threshold: {opportunityFireThreshold}");
+                bool exceedsFirepowerReductionThreshold = oppTargFirepowerReduction > desTargFirepowerReduction * opportunityFireTakeawayThreshold;
+                Mod.Log.Debug($"  Comparing firepower reduction - opportunity: {oppTargFirepowerReduction} vs. designated: {desTargFirepowerReduction} * threshold: {1f + opportunityFireTakeawayThreshold}");
+
+                // TODO: Short circuit here - takes the first result, instead of the best result. Should we fix this?
+                if (oppTargAttackOrder != null && oppTargAttackOrder.orderInfo != null &&  
+                    (exceedsOpportunityFireThreshold || exceedsFirepowerReductionThreshold)) {
+                    Mod.Log.Debug(" Taking opportunity fire attack, instead of attacking designated target.");
+                    __result = oppTargAttackOrder;
+                    return false;
+                }
+            }
+
+            if (behaviorTreeResults != null && behaviorTreeResults.orderInfo != null) {
+                Mod.Log.Debug("Successfuly calculated attack order");
+                unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking designated target. Success");
+                __result = behaviorTreeResults;
+                return false;
+            }
+
+            Mod.Log.Debug("Could not calculate reasonable attacks. Skipping node.");
+            __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
+
+            return false;
         }
     }
 
@@ -65,7 +106,7 @@ namespace CleverGirl.Patches {
                 Mod.Log.Info("AE:MAOFT entered.");
 
                 //ModState.RangeToTargetsAlliesCache.Clear();
-                __result = Original(unit, target, enemyUnitIndex, isStationary, out BehaviorTreeResults innerBTR);
+                __result = AOHelper.MakeAttackOrderForTarget(unit, target, isStationary, out BehaviorTreeResults innerBTR);
                 order = innerBTR;
             } catch (Exception e) {
                 Mod.Log.Error("Failed to modify AttackOrder evaluation due to error: " + e.Message);
@@ -76,223 +117,6 @@ namespace CleverGirl.Patches {
             }
 
             return false;
-        }
-
-        private static float Original(AbstractActor attackerAA, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order) {
-            Mod.Log.Debug($"Evaluating AttackOrder from ({CombatantUtils.Label(attackerAA)}) against ({CombatantUtils.Label(target)} at position: ({target.CurrentPosition})");
-
-            // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
-            if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target)) {
-                order = BehaviorTreeResults.BehaviorTreeResultsFromBoolean(false);
-                return 0f;
-            }
-
-            Mech attackerMech = attackerAA as Mech;
-            float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
-            float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech); ;
-            Mod.Log.Debug($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
-
-            float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
-            float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
-            float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
-            float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
-            float weaponToHitThreshold = attackerAA.BehaviorTree.weaponToHitThreshold;
-
-            float num4 = AttackEvaluator.MaxDamageLevel(attackerAA, target);
-
-            // Filter weapons that cannot contribute to the battle
-            CandidateWeapons candidateWeapons = new CandidateWeapons(attackerAA, target);
-
-            Mech targetMech = target as Mech;
-            bool targetIsEvasive = targetMech != null && targetMech.IsEvasive;
-            List<List<CondensedWeapon>>[] weaponSetsByAttackType = {
-                new List<List<CondensedWeapon>>() { }, new List<List<CondensedWeapon>>() { }, new List<List<CondensedWeapon>>() { }
-            };
-            
-            float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
-
-            // Evaluate ranged attacks 
-            if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                Mod.Log.Debug($"Checking evasive shots against target, needs {evasiveToHitFraction} or higher to be included.");
-                weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-            } else {
-                Mod.Log.Debug($"Checking non-evasive target.");
-                weaponSetsByAttackType[0] = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
-            }
-
-            // Evaluate melee attacks
-            string cannotEngageInMeleeMsg = "";
-            if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg)) {
-                Mod.Log.Debug($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
-            } else {
-                // Check Retaliation
-                if (AttackEvaluatorHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
-
-                    // Generate base list
-                    List<List<CondensedWeapon>> meleeWeaponSets = null;
-                    if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                        meleeWeaponSets = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.MeleeWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                    } else {
-                        meleeWeaponSets = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.MeleeWeapons);
-                    }
-
-                    // Add melee weapons to each set
-                    CondensedWeapon cMeleeWeapon = new CondensedWeapon(attackerMech.MeleeWeapon);
-                    for (int i = 0; i < meleeWeaponSets.Count; i++) {
-                        meleeWeaponSets[i].Add(cMeleeWeapon);
-                    }
-
-                    weaponSetsByAttackType[1] = meleeWeaponSets;
-                } else {
-                    Mod.Log.Debug($" potential melee damage too high, skipping melee.");
-                }
-            }
-
-            // Evaluate DFA attacks
-            if (attackerMech == null || !AIUtil.IsDFAAcceptable(attackerMech, target)) {
-                Mod.Log.Debug("this unit cannot dfa");
-            } else { 
-
-                // TODO: Check Retaliation
-
-                List<List<CondensedWeapon>> dfaWeaponSets = null;
-                if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                    dfaWeaponSets = AttackEvaluatorHelper.MakeWeaponSetsForEvasive(candidateWeapons.DFAWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                } else {
-                    dfaWeaponSets = AttackEvaluatorHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
-                }
-
-                // Add DFA weapons to each set
-                CondensedWeapon cDFAWeapon = new CondensedWeapon(attackerMech.DFAWeapon);
-                for (int i = 0; i < dfaWeaponSets.Count; i++) {
-                    dfaWeaponSets[i].Add(cDFAWeapon);
-                }
-
-                weaponSetsByAttackType[2] = dfaWeaponSets;
-            }
-
-            List<AttackEvaluation> list = AttackEvaluatorHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
-            Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
-            float bestRangedEDam = 0f;
-            float bestMeleeEDam = 0f;
-            float bestDFAEDam = 0f;
-            for (int m = 0; m < list.Count; m++) {
-                AttackEvaluation attackEvaluation = list[m];
-                Mod.Log.Debug(string.Format("evaluated attack of type {0} with {1} weapons and a result of {2}", attackEvaluation.AttackType, attackEvaluation.WeaponList.Count, attackEvaluation.ExpectedDamage));
-                switch (attackEvaluation.AttackType) {
-                    case AIUtil.AttackType.Shooting:
-                        bestRangedEDam = Mathf.Max(bestRangedEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    case AIUtil.AttackType.Melee:
-                        bestMeleeEDam = Mathf.Max(bestMeleeEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    case AIUtil.AttackType.DeathFromAbove:
-                        bestDFAEDam = Mathf.Max(bestDFAEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    default:
-                        Debug.Log("unknown attack type: " + attackEvaluation.AttackType);
-                        break;
-                }
-            }
-            Mod.Log.Debug("best shooting: " + bestRangedEDam);
-            Mod.Log.Debug("best melee: " + bestMeleeEDam);
-            Mod.Log.Debug("best dfa: " + bestDFAEDam);
-
-            for (int n = 0; n < list.Count; n++) {
-                AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
-                Mod.Log.Debug("evaluating attack solution #" + n);
-                Mod.Log.Debug("------");
-                Mod.Log.Debug("Weapons:");
-                foreach (Weapon weapon3 in attackEvaluation2.WeaponList) {
-                    Mod.Log.Debug("Weapon: " + weapon3.Name);
-                }
-                Mod.Log.Debug("heat generated for attack solution: " + attackEvaluation2.HeatGenerated);
-                Mod.Log.Debug("current heat: " + currentHeat);
-                Mod.Log.Debug("acceptable heat: " + acceptableHeat);
-                bool flag5 = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
-                Mod.Log.Debug("will overheat? " + flag5);
-                if (flag5 && attackerMech.OverheatWillCauseDeath()) {
-                    Mod.Log.Debug("rejecting attack because overheat would cause own death");
-                } else {
-                    bool flag6 = num4 >= existingTargetDamageForOverheat;
-                    Mod.Log.Debug("but enough damage for overheat attack? " + flag6);
-                    bool flag7 = attackEvaluation2.lowestHitChance >= weaponToHitThreshold;
-                    Mod.Log.Debug("but enough accuracy for overheat attack? " + flag7);
-                    AbstractActor abstractActor = target as AbstractActor;
-                    if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee && (!attackerAA.CanEngageTarget(target) || abstractActor == null || !isStationary)) {
-                        Mod.Log.Debug("Can't Melee");
-                    } else if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove && (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition) || num4 < existingTargetDamageForDFA || attackerLegDamage > maxAllowedLegDamageForDFA)) {
-                        Mod.Log.Debug("Can't DFA");
-                    } else if (flag5 && (!flag6 || !flag7)) {
-                        Mod.Log.Debug("rejecting attack for not enough damage or accuracy on an attack that will overheat");
-                    } else if (attackEvaluation2.WeaponList.Count == 0) {
-                        Mod.Log.Debug("rejecting attack for not having any weapons");
-                    } else {
-                        if (attackEvaluation2.ExpectedDamage > 0f) {
-                            BehaviorTreeResults behaviorTreeResults = new BehaviorTreeResults(BehaviorNodeState.Success);
-                            CalledShotAttackOrderInfo calledShotAttackOrderInfo = AttackEvaluatorHelper.MakeOffensivePushOrder(attackerAA, attackEvaluation2, enemyUnitIndex);
-                            CalledShotAttackOrderInfo orderInfo;
-                            MultiTargetAttackOrderInfo orderInfo2;
-                            if (calledShotAttackOrderInfo != null) {
-                                behaviorTreeResults.orderInfo = calledShotAttackOrderInfo;
-                                behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using offensive push";
-                            } else if ((orderInfo = AttackEvaluatorHelper.MakeCalledShotOrder(attackerAA, attackEvaluation2, enemyUnitIndex, false)) != null) {
-                                behaviorTreeResults.orderInfo = orderInfo;
-                                behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using called shot";
-                            } else if (!flag5 && (orderInfo2 = MultiAttack.MakeMultiAttackOrder(attackerAA, attackEvaluation2, enemyUnitIndex)) != null) {
-                                behaviorTreeResults.orderInfo = orderInfo2;
-                                behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using multi attack";
-                            } else {
-                                AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target);
-                                attackOrderInfo.Weapons = attackEvaluation2.WeaponList;
-                                attackOrderInfo.TargetUnit = target;
-                                attackOrderInfo.VentFirst = (flag5 && attackerAA.HasVentCoolantAbility && attackerAA.CanVentCoolant);
-                                AIUtil.AttackType attackType = attackEvaluation2.AttackType;
-                                if (attackType != AIUtil.AttackType.Melee) {
-                                    if (attackType == AIUtil.AttackType.DeathFromAbove) {
-                                        attackOrderInfo.IsDeathFromAbove = true;
-                                        attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
-                                        attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                                        List<PathNode> dfadestsForTarget = attackerMech.JumpPathing.GetDFADestsForTarget(abstractActor);
-                                        if (dfadestsForTarget.Count == 0) {
-                                            Mod.Log.Debug("Failing for lack of DFA destinations");
-                                            goto IL_B74;
-                                        }
-                                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(abstractActor, dfadestsForTarget);
-                                    }
-                                } else {
-                                    attackOrderInfo.IsMelee = true;
-                                    attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
-                                    attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                                    List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(abstractActor);
-                                    if (meleeDestsForTarget.Count == 0) {
-                                        Mod.Log.Debug("Failing for lack of melee destinations");
-                                        goto IL_B74;
-                                    }
-                                    attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(abstractActor, meleeDestsForTarget);
-                                }
-                                behaviorTreeResults.orderInfo = attackOrderInfo;
-                                behaviorTreeResults.debugOrderString = string.Concat(new object[]
-                                {
-                                attackerAA.DisplayName,
-                                " using attack type: ",
-                                attackEvaluation2.AttackType,
-                                " against: ",
-                                target.DisplayName
-                                });
-                            }
-                            Mod.Log.Debug("attack order: " + behaviorTreeResults.debugOrderString);
-                            order = behaviorTreeResults;
-                            return attackEvaluation2.ExpectedDamage;
-                        }
-                        Mod.Log.Debug("rejecting attack for not having any expected damage");
-                    }
-                }
-            IL_B74:;
-            }
-            Mod.Log.Debug("There are no targets I can shoot at without overheating.");
-            order = null;
-            return 0f;
         }
     }
 

@@ -73,11 +73,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analytics\CombatantAnalytics.cs" />
+    <Compile Include="Helper\AOHelper.cs" />
     <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
-    <Compile Include="Helper\AttackEvaluatorHelper.cs" />
+    <Compile Include="Helper\AEHelper.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
+    <Compile Include="Patches\AITeamPatches.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
     <Compile Include="Patches\AIUtil_ExpectedDamageForAttack_Patches.cs" />
     <Compile Include="Patches\GenerateJumpMoveCandidatesNodePatch.cs" />

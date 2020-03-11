@@ -1,15 +1,10 @@
 ﻿using BattleTech;
+using CleverGirl.Analytics;
 using CleverGirlAIDamagePrediction;
-using CustAmmoCategories;
-
-#if USE_CAC
-using CustAmmoCategories;
-#endif
-
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
-
+using us.frostraptor.modUtils;
 using static AttackEvaluator;
 
 namespace CleverGirl {
@@ -70,7 +65,62 @@ namespace CleverGirl {
         }
     }
 
-    public static class AttackEvaluatorHelper {
+    public static class AEHelper {
+
+        // Initialize any decision-making data necessary to make an attack order. Fetch the current state of opponents
+        //  and cache it for quick look-up
+        public static void InitializeAttackOrderDecisionData(AbstractActor unit) {
+            Mod.Log.Trace("AE:MAO:pre - entered.");
+            ModState.BehaviorVarValuesCache.Clear();
+
+            // Reset the analytics cache
+            ModState.CombatantAnalytics.Clear();
+
+            ModState.CurrentActorAllies.Clear();
+            ModState.CurrentActorNeutrals.Clear();
+            ModState.CurrentActorEnemies.Clear();
+
+            // Prime the caches with information about all targets
+            Mod.Log.Debug($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
+            foreach (ICombatant combatant in unit.Combat.GetAllImporantCombatants()) {
+                if (combatant.GUID == unit.GUID) { continue; }
+
+                // Will only include alive actors and buildings that are 'tab' targets
+                if (unit.Combat.HostilityMatrix.IsFriendly(unit.team, combatant.team)) {
+                    ModState.CurrentActorAllies[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
+                } else if (unit.Combat.HostilityMatrix.IsEnemy(unit.team, combatant.team)) {
+                    ModState.CurrentActorEnemies[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
+                } else {
+                    ModState.CurrentActorNeutrals[combatant.GUID] = combatant;
+                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
+                }
+
+                // Add the combatant to the analytics
+                ModState.CombatantAnalytics[combatant.GUID] = new CombatantAnalytics(combatant);
+            }
+
+            // TODO: Evaluate objectives
+            ModState.LocalPlayerEnemyObjective.Clear();
+            ModState.LocalPlayerFriendlyObjective.Clear();
+        }
+
+        public static AbstractActor FilterEnemyUnitsToDesignatedTarget(AITeam aiteam, Lance attackerLance, List<ICombatant> enemyUnits) {
+            AbstractActor designatedTarget = null;
+            if (aiteam != null && aiteam.DesignatedTargetForLance.ContainsKey(attackerLance)) {
+                designatedTarget = aiteam.DesignatedTargetForLance[attackerLance];
+                if (designatedTarget != null && !designatedTarget.IsDead) {
+                    for (int i = 0; i < enemyUnits.Count; i++) {
+                        if (enemyUnits[i] == designatedTarget) {
+                            designatedTarget = enemyUnits[i] as AbstractActor;
+                            break;
+                        }
+                    }
+                }
+            }
+            return designatedTarget;
+        }
 
         public static List<AttackEvaluation> EvaluateAttacks(AbstractActor unit, ICombatant target, 
             List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
@@ -268,11 +318,11 @@ namespace CleverGirl {
         }
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
-        public static CalledShotAttackOrderInfo MakeOffensivePushOrder(AbstractActor attackingUnit, AttackEvaluator.AttackEvaluation evaluatedAttack, int enemyUnitIndex) {
+        public static CalledShotAttackOrderInfo MakeOffensivePushOrder(AbstractActor attackingUnit, AttackEvaluator.AttackEvaluation evaluatedAttack, ICombatant target) {
             if (!attackingUnit.CanUseOffensivePush() || !ShouldUnitUseInspire(attackingUnit)) {
                 return null;
             }
-            return MakeCalledShotOrder(attackingUnit, evaluatedAttack, enemyUnitIndex, true);
+            return MakeCalledShotOrder(attackingUnit, evaluatedAttack, target, true);
         }
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
@@ -290,12 +340,13 @@ namespace CleverGirl {
         }
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!
-        public static CalledShotAttackOrderInfo MakeCalledShotOrder(AbstractActor attackingUnit, AttackEvaluator.AttackEvaluation evaluatedAttack, int enemyUnitIndex, bool isMoraleAttack) {
-            ICombatant combatant = attackingUnit.BehaviorTree.enemyUnits[enemyUnitIndex];
-            Mech mech = combatant as Mech;
+        public static CalledShotAttackOrderInfo MakeCalledShotOrder(AbstractActor attackingUnit, AttackEvaluator.AttackEvaluation evaluatedAttack, ICombatant target, bool isMoraleAttack) {
+            
+            Mech mech = target as Mech;
             if (mech == null || !mech.IsVulnerableToCalledShots() || evaluatedAttack.AttackType == AIUtil.AttackType.Melee || evaluatedAttack.AttackType == AIUtil.AttackType.DeathFromAbove) {
                 return null;
             }
+
             Mech mech2 = attackingUnit as Mech;
             for (int i = 0; i < evaluatedAttack.WeaponList.Count; i++) {
                 Weapon weapon = evaluatedAttack.WeaponList[i];
@@ -303,28 +354,29 @@ namespace CleverGirl {
                     return null;
                 }
             }
-            List<ArmorLocation> list = new List<ArmorLocation>
-            {
-            ArmorLocation.Head,
-            ArmorLocation.CenterTorso,
-            ArmorLocation.LeftTorso,
-            ArmorLocation.LeftArm,
-            ArmorLocation.LeftLeg,
-            ArmorLocation.RightTorso,
-            ArmorLocation.RightArm,
-            ArmorLocation.RightLeg
-        };
-            List<ChassisLocations> list2 = new List<ChassisLocations>
-            {
-            ChassisLocations.Head,
-            ChassisLocations.CenterTorso,
-            ChassisLocations.LeftTorso,
-            ChassisLocations.LeftArm,
-            ChassisLocations.LeftLeg,
-            ChassisLocations.RightTorso,
-            ChassisLocations.RightArm,
-            ChassisLocations.RightLeg
-        };
+
+            List<ArmorLocation> list = new List<ArmorLocation> {
+                ArmorLocation.Head,
+                ArmorLocation.CenterTorso,
+                ArmorLocation.LeftTorso,
+                ArmorLocation.LeftArm,
+                ArmorLocation.LeftLeg,
+                ArmorLocation.RightTorso,
+                ArmorLocation.RightArm,
+                ArmorLocation.RightLeg
+            };
+
+            List<ChassisLocations> list2 = new List<ChassisLocations> {
+                ChassisLocations.Head,
+                ChassisLocations.CenterTorso,
+                ChassisLocations.LeftTorso,
+                ChassisLocations.LeftArm,
+                ChassisLocations.LeftLeg,
+                ChassisLocations.RightTorso,
+                ChassisLocations.RightArm,
+                ChassisLocations.RightLeg
+            };
+
             List<float> list3 = new List<float>(list.Count);
             float num = 0f;
             for (int j = 0; j < list.Count; j++) {
@@ -332,6 +384,7 @@ namespace CleverGirl {
                 list3.Add(num2);
                 num += num2;
             }
+
             float num3 = UnityEngine.Random.Range(0f, num);
             CalledShotAttackOrderInfo calledShotAttackOrderInfo = null;
             for (int k = 0; k < list.Count; k++) {
@@ -342,15 +395,18 @@ namespace CleverGirl {
                 }
                 num3 -= num4;
             }
+
             if (calledShotAttackOrderInfo == null) {
                 Debug.LogError("Failed to calculate called shot. Targeting head as fallback.");
                 calledShotAttackOrderInfo = new CalledShotAttackOrderInfo(mech, ArmorLocation.Head, isMoraleAttack);
             }
+
             for (int l = 0; l < evaluatedAttack.WeaponList.Count; l++) {
                 Weapon weapon2 = evaluatedAttack.WeaponList[l];
                 AIUtil.LogAI("Called Shot: Adding weapon " + weapon2.Name, "AI.DecisionMaking");
                 calledShotAttackOrderInfo.AddWeapon(weapon2);
             }
+
             return calledShotAttackOrderInfo;
         }
 
