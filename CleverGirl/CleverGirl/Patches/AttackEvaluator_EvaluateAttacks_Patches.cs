@@ -61,6 +61,7 @@ namespace CleverGirl.Patches {
 
                 AbstractActor opportunityFireTarget = combatant as AbstractActor;
                 BehaviorTreeResults oppTargAttackOrder;
+                // Should MAOFT take a param for opportunity attacks to simplify? 
                 float oppTargDamage = AOHelper.MakeAttackOrderForTarget(unit, combatant, isStationary, out oppTargAttackOrder);
                 float oppTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, combatant, combatant.CurrentPosition, combatant.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
                 Mod.Log.Debug($"  Target will suffer: {oppTargDamage} with firepower reduction: {oppTargFirepowerReduction}");

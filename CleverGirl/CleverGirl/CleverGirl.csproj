@@ -81,7 +81,6 @@
     <Compile Include="Objects\CondensedWeapon.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
-    <Compile Include="Patches\AIUtil_ExpectedDamageForAttack_Patches.cs" />
     <Compile Include="Patches\GenerateJumpMoveCandidatesNodePatch.cs" />
     <Compile Include="Patches\ProfilePatches.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

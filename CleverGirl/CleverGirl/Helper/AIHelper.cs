@@ -191,6 +191,11 @@ namespace CleverGirl {
                     // If target is braced / guarded - reduce damage?
                     // If target is evasive - weight AoE attacks (since they auto-hit)?
 
+                    if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f) {
+                        Mod.Log.Debug($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
+                        dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
+                    }
+
                     // Check target damage reduction?
                     float armorReduction = 0f;
                     foreach(AmmunitionBox aBox in cWeapon.First.ammoBoxes) {

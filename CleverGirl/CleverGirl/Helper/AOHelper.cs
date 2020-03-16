@@ -129,10 +129,15 @@ namespace CleverGirl.Helper {
             float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
             float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
             float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
+
+            AbstractActor targetActor = target as AbstractActor;
+            List<PathNode> dfadestsForTarget = attackerMech.JumpPathing.GetDFADestsForTarget(targetActor);
+            List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
+
+            // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++) {
                 AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
                 Mod.Log.Debug("------");
-                AbstractActor targetActor = target as AbstractActor;
                 Mod.Log.Debug($"Evaluating attack solution #{n} vs target: {CombatantUtils.Label(targetActor)}");
                 
                 // TODO: Do we really need this spam?
@@ -144,6 +149,7 @@ namespace CleverGirl.Helper {
                     Mod.Log.Debug("SOLUTION REJECTED - no weapons!");
                 }
 
+                // TODO: Does heatGenerated account for jump heat?
                 bool willCauseOverheat = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
                 Mod.Log.Debug($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
                 if (willCauseOverheat && attackerMech.OverheatWillCauseDeath()) {
@@ -160,74 +166,105 @@ namespace CleverGirl.Helper {
                 //    continue;
                 //}
 
+                if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee) {
+                    if (!attackerAA.CanEngageTarget(target)) {
+                        Mod.Log.Debug("SOLUTION REJECTED - can't engage target!");
+                        continue;
+                    }
+                    if (meleeDestsForTarget.Count == 0) {
+                        Mod.Log.Debug("SOLUTION REJECTED - can't build path to target!");
+                        continue;
+                    }
+                    if (targetActor == null) {
+                        Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
+                        continue;
+                    }
+                    if (!isStationary) { } 
+                }
+
                 if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee && (!attackerAA.CanEngageTarget(target) ||
                     targetActor == null || !isStationary)) {
                     Mod.Log.Debug("SOLUTION REJECTED - can't melee");
                     continue;
                 }
 
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove && (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition) ||
-                    targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA || 
-                    attackerLegDamage > maxAllowedLegDamageForDFA)) {
-                    Mod.Log.Debug("SOLUTION REJECTED - DFA not applicable!");
-                    continue;
+
+                // Check for DFA auto-failures
+                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove) {
+
+                    if (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition)) {
+                        Mod.Log.Debug($"SOLUTION REJECTED - Cannot DFA target from pos: {attackerAA.CurrentPosition}!");
+                        continue;
+                    }
+
+                    if (dfadestsForTarget.Count == 0) {
+                        Mod.Log.Debug($"SOLUTION REJECTED - no valid DFA destination pathNodes!");
+                        continue;
+                    }
+
+                    if (targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA) {
+                        Mod.Log.Debug($"SOLUTION REJECTED - armor fraction: {targetMaxArmorFractionFromHittableLocations} < behVar(Float_ExistingTargetDamageForDFAAttack): {existingTargetDamageForDFA}!");
+                        continue;
+                    }
+
+                    if (attackerLegDamage > maxAllowedLegDamageForDFA) {
+                        Mod.Log.Debug($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
+                        continue;
+                    }
                 }
 
+                // LOGIC: If we have some damage from an attack, can we improve upon it as a morale / called shot / multi-attack?
                 if (attackEvaluation2.ExpectedDamage > 0f) {
                     BehaviorTreeResults behaviorTreeResults = new BehaviorTreeResults(BehaviorNodeState.Success);
                     
-                    CalledShotAttackOrderInfo orderInfo = AEHelper.MakeCalledShotOrder(attackerAA, attackEvaluation2, target, false);
-                    MultiTargetAttackOrderInfo orderInfo2 = MultiAttack.MakeMultiAttackOrder(attackerAA, attackEvaluation2, enemyUnitIndex);
 
-                    CalledShotAttackOrderInfo calledShotAttackOrderInfo = AEHelper.MakeOffensivePushOrder(attackerAA, attackEvaluation2, target);
-                    if (calledShotAttackOrderInfo != null) {
-                        behaviorTreeResults.orderInfo = calledShotAttackOrderInfo;
-                        behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using offensive push";
-                    } else if (orderInfo != null) {
-                        behaviorTreeResults.orderInfo = orderInfo;
-                        behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using called shot";
-                    } else if (!willCauseOverheat && orderInfo2 != null) {
-                        // Multi-attack in RT / BTA only makes sense to:
-                        //  1. maximize breaching shot (which ignores cover/etc) if you a single weapon
-                        //  2. spread status effects around while firing on a single target
-                        //  3. maximizing total damage across N targets, while sacrificing potential damage at a specific target
-                        //    3a. Especially with set sof weapons across range brackets, where you can split short-range weapons and long-range weapons                                
-                        behaviorTreeResults.orderInfo = orderInfo2;
-                        behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using multi attack";
-                    } else {
-                        AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target);
-                        attackOrderInfo.Weapons = attackEvaluation2.WeaponList;
-                        attackOrderInfo.TargetUnit = target;
-                        attackOrderInfo.VentFirst = (willCauseOverheat && attackerAA.HasVentCoolantAbility && attackerAA.CanVentCoolant);
-                        AIUtil.AttackType attackType = attackEvaluation2.AttackType;
+                    // LOGIC: Check for a morale attack (based on available morale) - target must be shutdown or knocked down
+                    //CalledShotAttackOrderInfo offensivePushAttackOrderInfo = AEHelper.MakeOffensivePushOrder(attackerAA, attackEvaluation2, target);
+                    //if (offensivePushAttackOrderInfo != null) {
+                    //    behaviorTreeResults.orderInfo = offensivePushAttackOrderInfo;
+                    //    behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using offensive push";
+                    //}
 
-                        if (attackType != AIUtil.AttackType.Melee) {
-                            if (attackType == AIUtil.AttackType.DeathFromAbove) {
-                                attackOrderInfo.IsDeathFromAbove = true;
-                                attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
-                                attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                                List<PathNode> dfadestsForTarget = attackerMech.JumpPathing.GetDFADestsForTarget(targetActor);
-                                if (dfadestsForTarget.Count == 0) {
-                                    Mod.Log.Debug("Failing for lack of DFA destinations");
-                                    goto IL_B74;
-                                }
-                                attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, dfadestsForTarget);
-                            }
-                        } else {
-                            attackOrderInfo.IsMelee = true;
-                            attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
-                            attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                            List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
-                            if (meleeDestsForTarget.Count == 0) {
-                                Mod.Log.Debug("Failing for lack of melee destinations");
-                                goto IL_B74;
-                            }
-                            attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, meleeDestsForTarget);
-                        }
+                    // LOGIC: Check for a called shot - target must be shutdown or knocked down
+                    //CalledShotAttackOrderInfo calledShotAttackOrderInfo = AEHelper.MakeCalledShotOrder(attackerAA, attackEvaluation2, target, false);
+                    //if (calledShotAttackOrderInfo != null) {
+                    //    behaviorTreeResults.orderInfo = calledShotAttackOrderInfo;
+                    //    behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using called shot";
+                    //}
 
-                        behaviorTreeResults.orderInfo = attackOrderInfo;
-                        behaviorTreeResults.debugOrderString = $" using attack type: {attackEvaluation2.AttackType} against: {target.DisplayName}";
+                    // LOGIC: Check for multi-attack that will fit within our heat boundaries
+                    //MultiTargetAttackOrderInfo multiAttackOrderInfo = MultiAttack.MakeMultiAttackOrder(attackerAA, attackEvaluation2, enemyUnitIndex);
+                    //if (!willCauseOverheat && multiAttackOrderInfo != null) {
+                    //     Multi-attack in RT / BTA only makes sense to:
+                    //      1. maximize breaching shot (which ignores cover/etc) if you a single weapon
+                    //      2. spread status effects around while firing on a single target
+                    //      3. maximizing total damage across N targets, while sacrificing potential damage at a specific target
+                    //        3a. Especially with set sof weapons across range brackets, where you can split short-range weapons and long-range weapons                                
+                    //    behaviorTreeResults.orderInfo = multiAttackOrderInfo;
+                    //    behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using multi attack";
+                    //} 
+
+                    AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target) {
+                        Weapons = attackEvaluation2.WeaponList,
+                        TargetUnit = target
+                    };
+                    AIUtil.AttackType attackType = attackEvaluation2.AttackType;
+
+                    if (attackType == AIUtil.AttackType.DeathFromAbove) {
+                        attackOrderInfo.IsDeathFromAbove = true;
+                        attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
+                        attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
+                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, dfadestsForTarget);
+                    } else if (attackType == AIUtil.AttackType.Melee) {
+                        attackOrderInfo.IsMelee = true;
+                        attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
+                        attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
+
+                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, meleeDestsForTarget);
                     }
+
+                    behaviorTreeResults.orderInfo = attackOrderInfo;
+                    behaviorTreeResults.debugOrderString = $" using attack type: {attackEvaluation2.AttackType} against: {target.DisplayName}";
 
                     Mod.Log.Debug("attack order: " + behaviorTreeResults.debugOrderString);
                     order = behaviorTreeResults;
