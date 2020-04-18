@@ -53,6 +53,7 @@ namespace CleverGirl.Helper {
                 Mod.Log.Debug($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
             } else {
                 // Check Retaliation
+                // TODO: Retaliation should consider all possible attackers, not just the attacker
                 if (AEHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
 
                     // Generate base list
@@ -71,7 +72,7 @@ namespace CleverGirl.Helper {
 
                     weaponSetsByAttackType[1] = meleeWeaponSets;
                 } else {
-                    Mod.Log.Debug($" potential melee damage too high, skipping melee.");
+                    Mod.Log.Debug($" potential melee retaliation too high, skipping melee.");
                 }
             }
 
@@ -179,7 +180,10 @@ namespace CleverGirl.Helper {
                         Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
                         continue;
                     }
-                    if (!isStationary) { } 
+                    if (!isStationary) {
+                        Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
+                        continue;
+                    } 
                 }
 
                 if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee && (!attackerAA.CanEngageTarget(target) ||
