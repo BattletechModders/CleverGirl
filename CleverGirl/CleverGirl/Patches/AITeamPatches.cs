@@ -17,7 +17,7 @@ namespace CleverGirl.Patches {
      *     b. Evaluate if that attack will remove firepower from the table
      *     c. Select the highest firepower reduction from the table.
      */
-    [HarmonyPatch(typeof(AIUtil), "ChooseDesignatedTarget")]
+    [HarmonyPatch(typeof(AITeam), "ChooseDesignatedTarget")]
     public static class AITeam_ChooseDesignatedTarget {
         public static void Prefix(AITeam __instance) {
             Mod.Log.Trace("AIU:CDT:Pre");
