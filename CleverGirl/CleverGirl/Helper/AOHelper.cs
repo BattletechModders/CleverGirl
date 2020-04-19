@@ -275,7 +275,6 @@ namespace CleverGirl.Helper {
                     return attackEvaluation2.ExpectedDamage;
                 }
                 Mod.Log.Debug("rejecting attack for not having any expected damage");
-            IL_B74:;
             }
 
             Mod.Log.Debug("There are no targets I can shoot at without overheating.");
