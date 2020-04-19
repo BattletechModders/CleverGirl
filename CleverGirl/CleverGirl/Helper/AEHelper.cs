@@ -286,14 +286,14 @@ namespace CleverGirl {
                 }
             }
 
-            float num = float.MinValue;
+            float unlikelyWeaponChanceToHit = float.MinValue;
             CondensedWeapon weapon2 = null;
             for (int j = 0; j < unlikelyNonAmmoWeapons.Count; j++) {
                 CondensedWeapon nonAmmoWeapon = unlikelyNonAmmoWeapons[j];
                 float toHitFromPosition2 = nonAmmoWeapon.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
-                float num2 = toHitFromPosition2 * (float)nonAmmoWeapon.First.ShotsWhenFired * nonAmmoWeapon.First.DamagePerShot;
-                if (num2 > num) {
-                    num = num2;
+                float weaponChanceToHit = toHitFromPosition2 * (float)nonAmmoWeapon.First.ShotsWhenFired * nonAmmoWeapon.First.DamagePerShot;
+                if (weaponChanceToHit > unlikelyWeaponChanceToHit) {
+                    unlikelyWeaponChanceToHit = weaponChanceToHit;
                     weapon2 = nonAmmoWeapon;
                 }
             }
@@ -302,9 +302,9 @@ namespace CleverGirl {
                 for (int k = 0; k < unlikelyAmmoWeapons.Count; k++) {
                     CondensedWeapon weapon4 = unlikelyAmmoWeapons[k];
                     float toHitFromPosition3 = weapon4.First.GetToHitFromPosition(target, 1, shooterPosition, target.CurrentPosition, true, true, false);
-                    float num3 = toHitFromPosition3 * (float)weapon4.First.ShotsWhenFired * weapon4.First.DamagePerShot;
-                    if (num3 > num) {
-                        num = num3;
+                    float weaponChanceToHit = toHitFromPosition3 * (float)weapon4.First.ShotsWhenFired * weapon4.First.DamagePerShot;
+                    if (weaponChanceToHit > unlikelyWeaponChanceToHit) {
+                        unlikelyWeaponChanceToHit = weaponChanceToHit;
                         weapon2 = weapon4;
                     }
                 }

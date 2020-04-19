@@ -14,6 +14,7 @@ namespace CleverGirl.Patches {
     [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrder {
         // WARNING: Replaces the existing logic 
+        // isStationary here represents the attacker, not the target
         public static bool Prefix(AbstractActor unit, bool isStationary, ref BehaviorTreeResults __result) {
             // If there is no unit, exit immediately
             if (unit == null) {
