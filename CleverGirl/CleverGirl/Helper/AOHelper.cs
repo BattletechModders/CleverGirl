@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using CleverGirl.Calculator;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -40,15 +41,6 @@ namespace CleverGirl.Helper {
 
             // Note: Disabled the evasion fractional checking that Vanilla uses. Should make units more free with ammunition against evasive foes
             //float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
-
-            // Evaluate ranged attacks 
-            //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-            //    Mod.Log.Debug($"Checking evasive shots against target, needs {evasiveToHitFraction} or higher to be included.");
-            //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-            //} else {
-            //    Mod.Log.Debug($"Checking non-evasive target.");
-            //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
-            //}
             weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
 
             // Evaluate melee attacks
@@ -63,12 +55,6 @@ namespace CleverGirl.Helper {
                 if (AEHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
 
                     // Generate base list
-                    //List<List<CondensedWeapon>> meleeWeaponSets = null;
-                    //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                    //    meleeWeaponSets = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.MeleeWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                    //} else {
-                    //    meleeWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.MeleeWeapons);
-                    //}
                     List<List<CondensedWeapon>> meleeWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.MeleeWeapons);
 
                     // Add melee weapons to each set
@@ -82,32 +68,15 @@ namespace CleverGirl.Helper {
                     Mod.Log.Debug($" potential melee retaliation too high, skipping melee.");
                 }
             }
+            WeaponHelper.FilterWeapons(attackerAA, target, out List<Weapon> rangedWeps, out List<Weapon> meleeWeps, out List<Weapon> dfaWeps);
+            AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(rangedWeps, attackerMech, target);
+            AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerMech, target);
+            AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerMech, target);
 
-            // Evaluate DFA attacks
-            if (attackerMech == null || !AIUtil.IsDFAAcceptable(attackerMech, target)) {
-                Mod.Log.Debug("this unit cannot dfa");
-            } else {
-
-                // TODO: Check Retaliation
-                //List<List<CondensedWeapon>> dfaWeaponSets = null;
-                //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                //    dfaWeaponSets = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.DFAWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                //} else {
-                //    dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
-                //}
-                List<List<CondensedWeapon>> dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
-
-                // Add DFA weapons to each set
-                CondensedWeapon cDFAWeapon = new CondensedWeapon(attackerMech.DFAWeapon);
-                for (int i = 0; i < dfaWeaponSets.Count; i++) {
-                    dfaWeaponSets[i].Add(cDFAWeapon);
-                }
-
-                weaponSetsByAttackType[2] = dfaWeaponSets;
-            }
-
-            List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
+                attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
             Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
+
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
@@ -132,14 +101,9 @@ namespace CleverGirl.Helper {
             }
             Mod.Log.Debug($"best shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
 
-            float targetMaxArmorFractionFromHittableLocations = AttackEvaluator.MaxDamageLevel(attackerAA, target);
-            float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
             //float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
-            float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
-            float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
 
             AbstractActor targetActor = target as AbstractActor;
-            List<PathNode> dfadestsForTarget = attackerMech.JumpPathing.GetDFADestsForTarget(targetActor);
             List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
 
             // LOGIC: Now, evaluate every set of attacks in the list
@@ -180,50 +144,6 @@ namespace CleverGirl.Helper {
                 //    Mod.Log.Debug("SOLUTION REJECTED - not enough damage or accuracy on an attack that will overheat");
                 //    continue;
                 //}
-
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee) {
-                    if (!attackerAA.CanEngageTarget(target)) {
-                        Mod.Log.Debug("SOLUTION REJECTED - can't engage target!");
-                        continue;
-                    }
-                    if (meleeDestsForTarget.Count == 0) {
-                        Mod.Log.Debug("SOLUTION REJECTED - can't build path to target!");
-                        continue;
-                    }
-                    if (targetActor == null) {
-                        Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
-                        continue;
-                    }
-                    // TODO: This seems wrong... why can't you melee if the target is already engaged with you?
-                    if (isStationary) {
-                        Mod.Log.Debug("SOLUTION REJECTED - attacker was stationary, can't melee");
-                        continue;
-                    } 
-                }
-
-                // Check for DFA auto-failures
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove) {
-
-                    if (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition)) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - Cannot DFA target from pos: {attackerAA.CurrentPosition}!");
-                        continue;
-                    }
-
-                    if (dfadestsForTarget.Count == 0) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - no valid DFA destination pathNodes!");
-                        continue;
-                    }
-
-                    if (targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - armor fraction: {targetMaxArmorFractionFromHittableLocations} < behVar(Float_ExistingTargetDamageForDFAAttack): {existingTargetDamageForDFA}!");
-                        continue;
-                    }
-
-                    if (attackerLegDamage > maxAllowedLegDamageForDFA) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
-                        continue;
-                    }
-                }
 
                 // LOGIC: If we have some damage from an attack, can we improve upon it as a morale / called shot / multi-attack?
                 if (attackEvaluation2.ExpectedDamage > 0f) {
@@ -267,7 +187,7 @@ namespace CleverGirl.Helper {
                         attackOrderInfo.IsDeathFromAbove = true;
                         attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
                         attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, dfadestsForTarget);
+                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, dfaDestinations);
                     } 
                     else if (attackType == AIUtil.AttackType.Melee) 
                     {

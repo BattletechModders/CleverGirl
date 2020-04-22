@@ -74,9 +74,13 @@
   <ItemGroup>
     <Compile Include="Analytics\CombatantAnalytics.cs" />
     <Compile Include="Helper\AOHelper.cs" />
+    <Compile Include="Helper\MeleeHelper.cs" />
+    <Compile Include="Helper\DFAHelper.cs" />
+    <Compile Include="Helper\WeaponHelper.cs" />
     <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
     <Compile Include="Helper\AEHelper.cs" />
+    <Compile Include="Objects\CandidateWeapons.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />

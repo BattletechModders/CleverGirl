@@ -1,80 +1,89 @@
-﻿
-using BattleTech;
+﻿using BattleTech;
 using CleverGirl.Components;
 using CleverGirl.Objects;
 using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using CustomComponents;
-using Harmony;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static CleverGirl.AIHelper;
 
-namespace CleverGirl {
-    public class AIHelper {
+namespace CleverGirl.Helper
+{
+    public static class WeaponHelper
+    {
 
-        public static int HeatForAttack(List<CondensedWeapon> weaponList) {
-            int num = 0;
-            for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
-                num += ((int)cWeapon.First.HeatGenerated * cWeapon.weaponsCondensed);
+        public static void FilterWeapons(AbstractActor attacker, ICombatant target,
+            out List<Weapon> rangedWeapons, out List<Weapon> meleeWeapons, out List<Weapon> dfaWeapons)
+        {
+            rangedWeapons = new List<Weapon>();
+            meleeWeapons = new List<Weapon>();
+            dfaWeapons = new List<Weapon>();
+
+            if (attacker == null) return;
+
+            List<Weapon> allWeapons = new List<Weapon>();
+            foreach (Weapon weap in attacker.Weapons)
+            {
+                // TODO: Ammo check should be more refined - needs to check ammo types, ammo cost across multiple weapons of the same type
+                // Checks if weapon is disabled and has ammo
+                if (weap.CanFire)
+                {
+                    allWeapons.Add(weap);
+                }
+                else
+                {
+                    Mod.Log.Debug($" Weapon ({weap.defId}) is disabled or out of ammo.");
+                }
             }
-            return num;
+
+            Mech attackerMech = (Mech)attacker;
+            if (attackerMech != null)
+            {
+                Mod.Log.Debug($" Adding melee weapon {attackerMech.MeleeWeapon.defId}");
+                meleeWeapons.Add(attackerMech.MeleeWeapon);
+
+                Mod.Log.Debug($" Adding DFA weapon {attackerMech.DFAWeapon.defId}");
+                dfaWeapons.Add(attackerMech.DFAWeapon);
+            }
+
+            float distance = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
+            foreach (Weapon weap in allWeapons)
+            {
+                Mod.Log.Debug($" Checking weapon ({weap.defId})");
+
+                // Check for LOF and within range
+                bool willFireAtTarget = weap.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
+                bool withinRange = distance <= weap.MaxRange;
+                if (willFireAtTarget && withinRange)
+                {
+                    Mod.Log.Debug($" -- Has LOF and is within range, adding as a ranged weapon.");
+                    rangedWeapons.Add(weap);
+                }
+                else
+                {
+                    Mod.Log.Debug($" -- Has not LOF is out of range; maxRange: {weap.MaxRange} < {distance}");
+                }
+
+                if (attackerMech != null && weap.WeaponCategoryValue.IsSupport)
+                {
+                    Mod.Log.Debug($" -- Is a support weapon, adding to melee and DFA sets");
+                    meleeWeapons.Add(weap);
+                    dfaWeapons.Add(weap);
+                } 
+            }
+
         }
-
-        public static float LowestHitChance(List<CondensedWeapon> weaponList, ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool targetIsEvasive) {
-            float num = float.MaxValue;
-            for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
-                float toHitFromPosition = cWeapon.First.GetToHitFromPosition(target, 1, attackPosition, targetPosition, true, targetIsEvasive, false);
-                num = Mathf.Min(num, toHitFromPosition);
-            }
-            return num;
-        }
-
-        public static float ExpectedDamageForAttack(AbstractActor attacker, AIUtil.AttackType attackType, List<CondensedWeapon> weaponList,
-            ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool useRevengeBonus, AbstractActor unitForBVContext) {
-
-            Mech mech = attacker as Mech;
-            AbstractActor abstractActor = target as AbstractActor;
-
-            // Attack type is melee and there's no path or ability, fail
-            if (attackType == AIUtil.AttackType.Melee &&
-                (abstractActor == null || mech == null || mech.Pathing.GetMeleeDestsForTarget(abstractActor).Count == 0)) {
-                return 0f;
-            }
-
-            // Attack type is DFA and there's no path or no ability, fail
-            if (attackType == AIUtil.AttackType.DeathFromAbove &&
-                (abstractActor == null || mech == null || mech.JumpPathing.GetDFADestsForTarget(abstractActor).Count == 0)) {
-                return 0f;
-            }
-
-            // Attack type is range and there's no weapons, fail
-            if (attackType == AIUtil.AttackType.Shooting && weaponList.Count == 0) {
-                return 0f;
-            }
-
-            AttackParams attackParams = new AttackParams(attackType, attacker, target as AbstractActor, attackPosition, weaponList.Count, useRevengeBonus);
-
-            float totalExpectedDam = 0f;
-            for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
-                totalExpectedDam += CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, attacker, attackPosition, target, targetPosition);
-            }
-
-            float blowQualityMultiplier = attacker.Combat.ToHit.GetBlowQualityMultiplier(attackParams.Quality);
-            float totalDam = totalExpectedDam * blowQualityMultiplier;
-
-            return totalDam;
-        }
-
-
 
         // Calculate the expected value for a given weapon against the target
-        public static float CalculateWeaponDamageEV(Weapon weapon, BehaviorTree bTree, AttackParams attackParams,
-            AbstractActor attacker, Vector3 attackerPos, ICombatant target, Vector3 targetPos) {
-           
+        public static float CalculateWeaponDamageEV(Weapon weapon, AbstractActor attacker, ICombatant target, AttackParams attackParams)
+        {
+
+            BehaviorTree bTree = attacker.BehaviorTree;
+            Vector3 attackerPos = attacker.CurrentPosition;
+            Vector3 targetPos = target.CurrentPosition;
+
             try
             {
                 float attackTypeWeight = 1f;
@@ -146,7 +155,8 @@ namespace CleverGirl {
                     if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
                 }
 
-                DetermineMaxDamageAmmoModePair(weapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair);
+                DetermineMaxDamageAmmoModePair(weapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, 
+                    out float maxDamage, out AmmoModePair maxDamagePair);
                 Mod.Log.Debug($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
                 weapon.ammoAndMode = maxDamagePair;
 
@@ -172,12 +182,12 @@ namespace CleverGirl {
             }
         }
 
-        private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
-            ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
+        private static void DetermineMaxDamageAmmoModePair(Weapon weapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos,
+                    ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
         {
             maxDamage = 0f;
             maxDamagePair = null;
-            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
+            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(weapon, attackerPos, target);
             foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
             {
                 AmmoModePair ammoModePair = kvp.Key;
@@ -214,7 +224,7 @@ namespace CleverGirl {
 
                     // Check target damage reduction?
                     float armorReduction = 0f;
-                    foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
+                    foreach (AmmunitionBox aBox in weapon.ammoBoxes)
                     {
                         //Mod.Log.Debug($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
                         if (aBox.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
@@ -251,96 +261,5 @@ namespace CleverGirl {
             }
         }
 
-        public static void TargetsWithinAoE(AbstractActor attacker, Vector3 position, float radius, 
-            out int alliesWithin, out int neutralWithin, out int enemyWithin) {
-
-            alliesWithin = 0;
-            neutralWithin = 0;
-            enemyWithin = 0;
-            foreach (ICombatant target in attacker.Combat.GetAllLivingCombatants()) {
-                float distance = (target.CurrentPosition - position).magnitude;
-                if (distance <= radius) {
-                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.TeamId, target.team?.GUID);
-                    if (targetHostility == Hostility.ENEMY) {
-                        enemyWithin++;
-                    } else if (targetHostility == Hostility.NEUTRAL) {
-                        neutralWithin++;
-                    } else if (targetHostility == Hostility.FRIENDLY) {
-                        alliesWithin++;
-                    }
-                }
-            }
-
-        }
-
-        // --- BEHAVIOR VARIABLE BELOW
-        public static BehaviorVariableValue GetCachedBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
-            return ModState.BehaviorVarValuesCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
-        }
-
-        // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE
-        public static BehaviorVariableValue GetBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
-            BehaviorVariableValue behaviorVariableValue = bTree.unitBehaviorVariables.GetVariable(name);
-            if (behaviorVariableValue != null) {
-                return behaviorVariableValue;
-            }
-
-            Pilot pilot = bTree.unit.GetPilot();
-            if (pilot != null) {
-                BehaviorVariableScope scopeForAIPersonality = bTree.unit.Combat.BattleTechGame.BehaviorVariableScopeManager.GetScopeForAIPersonality(pilot.pilotDef.AIPersonality);
-                if (scopeForAIPersonality != null) {
-                    behaviorVariableValue = scopeForAIPersonality.GetVariableWithMood(name, bTree.unit.BehaviorTree.mood);
-                    if (behaviorVariableValue != null) {
-                        return behaviorVariableValue;
-                    }
-                }
-            }
-
-            if (bTree.unit.lance != null) {
-                behaviorVariableValue = bTree.unit.lance.BehaviorVariables.GetVariable(name);
-                if (behaviorVariableValue != null) {
-                    return behaviorVariableValue;
-                }
-            }
-
-            if (bTree.unit.team != null) {
-                Traverse bvT = Traverse.Create(bTree.unit.team).Field("BehaviorVariables");
-                BehaviorVariableScope bvs = bvT.GetValue<BehaviorVariableScope>();
-                behaviorVariableValue = bvs.GetVariable(name);
-                if (behaviorVariableValue != null) {
-                    return behaviorVariableValue;
-                }
-            }
-
-            UnitRole unitRole = bTree.unit.DynamicUnitRole;
-            if (unitRole == UnitRole.Undefined) {
-                unitRole = bTree.unit.StaticUnitRole;
-            }
-
-            BehaviorVariableScope scopeForRole = bTree.unit.Combat.BattleTechGame.BehaviorVariableScopeManager.GetScopeForRole(unitRole);
-            if (scopeForRole != null) {
-                behaviorVariableValue = scopeForRole.GetVariableWithMood(name, bTree.unit.BehaviorTree.mood);
-                if (behaviorVariableValue != null) {
-                    return behaviorVariableValue;
-                }
-            }
-
-            if (bTree.unit.CanMoveAfterShooting) {
-                BehaviorVariableScope scopeForAISkill = bTree.unit.Combat.BattleTechGame.BehaviorVariableScopeManager.GetScopeForAISkill(AISkillID.Reckless);
-                if (scopeForAISkill != null) {
-                    behaviorVariableValue = scopeForAISkill.GetVariableWithMood(name, bTree.unit.BehaviorTree.mood);
-                    if (behaviorVariableValue != null) {
-                        return behaviorVariableValue;
-                    }
-                }
-            }
-
-            behaviorVariableValue = bTree.unit.Combat.BattleTechGame.BehaviorVariableScopeManager.GetGlobalScope().GetVariableWithMood(name, bTree.unit.BehaviorTree.mood);
-            if (behaviorVariableValue != null) {
-                return behaviorVariableValue;
-            }
-
-            return DefaultBehaviorVariableValue.GetSingleton();
-        }
     }
 }
