@@ -12,14 +12,14 @@ namespace CleverGirl.Patches {
     public static class AITeam_OnUpdate_Patch {
         public static void Prefix() {
             if (Mod.Config.Profile) {
-                Mod.Log.Info("== CLEARING INVOKE COUNTS ==");
+                Mod.Log.Info?.Write("== CLEARING INVOKE COUNTS ==");
                 ModState.InvokeCounts.Clear();
             }
         }
 
         public static void Postfix() {
             if (Mod.Config.Profile) {
-                Mod.Log.Info("== INVOKE COUNTS ==");
+                Mod.Log.Info?.Write("== INVOKE COUNTS ==");
                 var sortedKeys = ModState.InvokeCounts.Keys.ToList();
                 sortedKeys.Sort();
 
@@ -35,7 +35,7 @@ namespace CleverGirl.Patches {
                         sum += tick;
                     }
                     long average = sum / invocations.Count;
-                    Mod.Log.Info($"  in:{invocations.Count,7:0000000}  av:{average,7:0000000}  ma:{max,7:0000000}  mi:{min,7:0000000}  " +
+                    Mod.Log.Info?.Write($"  in:{invocations.Count,7:0000000}  av:{average,7:0000000}  ma:{max,7:0000000}  mi:{min,7:0000000}  " +
                         $"rn:{(max - min),7:0000000}  => {key}");
                 }
             }
@@ -66,7 +66,7 @@ namespace CleverGirl.Patches {
         }
 
         public static void PatchAllMethods(HarmonyInstance harmony) {
-            Mod.Log.Debug("=== Initializing Diagnostics Logger ====");
+            Mod.Log.Debug?.Write("=== Initializing Diagnostics Logger ====");
             
             var prefix = typeof(LogExecTime).GetMethod("Prefix");
 
@@ -78,7 +78,7 @@ namespace CleverGirl.Patches {
                 from method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
                 select new Target (type, method)
                 ).Distinct().ToList();
-            Mod.Log.Info($"Raw methods count: {allMethods.Count}");
+            Mod.Log.Info?.Write($"Raw methods count: {allMethods.Count}");
 
             List<Target> filteredMethods = allMethods
                 .Where(t =>
@@ -150,28 +150,28 @@ namespace CleverGirl.Patches {
                 .Where(t => !t.method.Name.Contains("GetInstanceID"))
 
                 .ToList();
-            Mod.Log.Info($"FilteredMethods count: {filteredMethods.Count}");
+            Mod.Log.Info?.Write($"FilteredMethods count: {filteredMethods.Count}");
 
             foreach (Target target in filteredMethods) {
-                Mod.Log.Trace($"  Potential wrappable method: ({target.ToString()})");
+                Mod.Log.Trace?.Write($"  Potential wrappable method: ({target.ToString()})");
                 if (!target.method.IsGenericMethod && !target.method.IsAbstract 
                     && ((target.method.GetMethodImplementationFlags() & MethodImplAttributes.InternalCall) == 0)
                     ) { 
                     var hPrefix = new HarmonyMethod(prefix);
                     var hPostfix = new HarmonyMethod(postfix);
                     harmony.Patch(target.method, hPrefix, hPostfix, null);
-                    Mod.Log.Info($"AI Method ({target.ToString()}) was wrapped.");
+                    Mod.Log.Info?.Write($"AI Method ({target.ToString()}) was wrapped.");
                 }
             }
 
-            Mod.Log.Info("=== End Diagnostics Logger ====");
+            Mod.Log.Info?.Write("=== End Diagnostics Logger ====");
         }
     }
 
     public static class LogExecTime {
 
         public static void Prefix(ref ExecState __state, MethodBase __originalMethod) {
-            //Mod.Log.Info($"PREFIX: {__originalMethod.Name}");
+            //Mod.Log.Info?.Write($"PREFIX: {__originalMethod.Name}");
             ProfilePatches.Target target = new ProfilePatches.Target(__originalMethod.DeclaringType, __originalMethod);
             __state = new ExecState(target);
             __state.Start();
@@ -179,7 +179,7 @@ namespace CleverGirl.Patches {
         }
 
         public static void Postfix(ref ExecState __state, Object __instance) {
-            //Mod.Log.Info($"POSTFIX: {__state.name}");
+            //Mod.Log.Info?.Write($"POSTFIX: {__state.name}");
             if (ModState.StackDepth > 0) { ModState.StackDepth--; }
             if (__state != null) {
                 __state.Stop(__instance);
@@ -204,7 +204,7 @@ namespace CleverGirl.Patches {
 
         public void Start() {
             string spaces = new string('=', ModState.StackDepth);
-            Mod.Log.Trace($" {spaces} {target.ToString()} entered");
+            Mod.Log.Trace?.Write($" {spaces} {target.ToString()} entered");
             stopWatch.Start();
 
         }
@@ -219,9 +219,9 @@ namespace CleverGirl.Patches {
                 Traverse bnT = Traverse.Create(bn).Field("name");
                 string bnName = bnT.GetValue<string>();
 
-                Mod.Log.Trace($" {spaces} BehaviorNode:{bnName} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
+                Mod.Log.Trace?.Write($" {spaces} BehaviorNode:{bnName} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
             } else {
-                Mod.Log.Trace($" {spaces} {target.ToString()} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
+                Mod.Log.Trace?.Write($" {spaces} {target.ToString()} took {stopWatch.Elapsed.Ticks}ticks / {stopWatch.Elapsed.TotalMilliseconds}ms");
             }
         }
 

@@ -17,7 +17,7 @@ namespace CleverGirl
 
         public CandidateWeapons(AbstractActor attacker, ICombatant target)
         {
-            Mod.Log.Debug($"Calculating candidate weapons");
+            Mod.Log.Debug?.Write($"Calculating candidate weapons");
 
             for (int i = 0; i < attacker.Weapons.Count; i++)
             {
@@ -27,7 +27,7 @@ namespace CleverGirl
 
                 if (cWeapon.First.CanFire)
                 {
-                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' included");
+                    Mod.Log.Debug?.Write($" -- '{cWeapon.First.defId}' included");
                     string cWepKey = cWeapon.First.weaponDef.Description.Id;
                     if (condensed.ContainsKey(cWepKey))
                     {
@@ -40,14 +40,14 @@ namespace CleverGirl
                 }
                 else
                 {
-                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' excluded (disabled or out of ammo)");
+                    Mod.Log.Debug?.Write($" -- '{cWeapon.First.defId}' excluded (disabled or out of ammo)");
                 }
             }
-            Mod.Log.Debug("  -- DONE");
+            Mod.Log.Debug?.Write("  -- DONE");
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
             float distance = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
-            Mod.Log.Debug($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
+            Mod.Log.Debug?.Write($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
                 $"target: ({target.CurrentPosition})");
             foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed)
             {
@@ -57,18 +57,18 @@ namespace CleverGirl
                 bool withinRange = distance <= cWeapon.First.MaxRange;
                 if (willFireAtTarget && withinRange)
                 {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
                     RangedWeapons.Add(cWeapon);
                 }
                 else
                 {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
                         $"or has no LOF, skipping.");
                 }
 
                 if (cWeapon.First.WeaponCategoryValue.IsSupport)
                 {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is anti-personnel, adding to melee and DFA sets.");
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) is anti-personnel, adding to melee and DFA sets.");
                     MeleeWeapons.Add(cWeapon);
                     DFAWeapons.Add(cWeapon);
                 }

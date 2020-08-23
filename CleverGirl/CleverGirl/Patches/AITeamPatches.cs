@@ -21,9 +21,9 @@ namespace CleverGirl.Patches {
     public static class AITeam_ChooseDesignatedTarget {
 
         public static void Postfix(AITeam __instance) {
-            Mod.Log.Trace("AIU:CDT:Post");
+            Mod.Log.Trace?.Write("AIU:CDT:Post");
             foreach (KeyValuePair<Lance, AbstractActor> kvp in __instance.DesignatedTargetForLance) {
-                Mod.Log.Info($"Lance: {kvp.Key.DisplayName} has designedTarget: {CombatantUtils.Label(kvp.Value)}");
+                Mod.Log.Info?.Write($"Lance: {kvp.Key.DisplayName} has designedTarget: {CombatantUtils.Label(kvp.Value)}");
             }
         }
     }

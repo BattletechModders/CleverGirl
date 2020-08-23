@@ -13,9 +13,9 @@ namespace CleverGirl {
         public DecisionWeights Weights = new DecisionWeights();
 
         public void LogConfig() {
-            Mod.Log.Info("=== MOD CONFIG BEGIN ===");
-            Mod.Log.Info($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
-            Mod.Log.Info("=== MOD CONFIG END ===");
+            Mod.Log.Info?.Write("=== MOD CONFIG BEGIN ===");
+            Mod.Log.Info?.Write($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
+            Mod.Log.Info?.Write("=== MOD CONFIG END ===");
         }
 
         public override string ToString() {

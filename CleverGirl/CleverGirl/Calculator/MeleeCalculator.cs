@@ -14,7 +14,7 @@ namespace CleverGirl.Calculator
             AbstractActor targetActor = (AbstractActor)target;
             if (attacker == null || target == null)
             {
-                Mod.Log.Warn($"Passed a null attacker or target, or target is not an AsbtractActor - returning an empty list");
+                Mod.Log.Warn?.Write($"Passed a null attacker or target, or target is not an AsbtractActor - returning an empty list");
                 return validWeapons;
             }
 
@@ -22,7 +22,7 @@ namespace CleverGirl.Calculator
             // Evaluate preconditions and behavior vars
             if (!EvaluateDFAPreconditions(attacker, targetActor))
             {
-                Mod.Log.Debug("Unit cannot DFA target, returning an empty weapons list.");
+                Mod.Log.Debug?.Write("Unit cannot DFA target, returning an empty weapons list.");
                 return validWeapons;
             }
 
@@ -36,13 +36,13 @@ namespace CleverGirl.Calculator
 
             if (!attacker.IsOperational || attacker.IsProne || attacker.HasMovedThisRound)
             {
-                Mod.Log.Debug($" Attacker {CombatantUtils.Label(attacker)} isProne, has already moved, or is not operational. Cannot DFA!");
+                Mod.Log.Debug?.Write($" Attacker {CombatantUtils.Label(attacker)} isProne, has already moved, or is not operational. Cannot DFA!");
                 return false;
             }
 
             if (attacker.WorkingJumpjets < 1)
             {
-                Mod.Log.Debug($" Attacker {CombatantUtils.Label(attacker)} has no working jump jets, cannot DFA!");
+                Mod.Log.Debug?.Write($" Attacker {CombatantUtils.Label(attacker)} has no working jump jets, cannot DFA!");
                 return false;
             }
 
@@ -50,7 +50,7 @@ namespace CleverGirl.Calculator
             if (dfaDestinations == null || dfaDestinations.Count == 0 ||
                 !attacker.CanDFATargetFromPosition(target, attacker.CurrentPosition))
             {
-                Mod.Log.Debug($" No LOS or destinations for attacker {CombatantUtils.Label(attacker)} to target {CombatantUtils.Label(target)}, cannot DFA!");
+                Mod.Log.Debug?.Write($" No LOS or destinations for attacker {CombatantUtils.Label(attacker)} to target {CombatantUtils.Label(target)}, cannot DFA!");
                 return false;
             }
 
@@ -58,14 +58,14 @@ namespace CleverGirl.Calculator
             float attackerLegDamage = AttackEvaluator.LegDamageLevel(attacker);
             float attackerMaxLegDamageBVal = AIHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             bool isLegDamageLowEnough = attackerLegDamage >= attackerMaxLegDamageBVal;
-            Mod.Log.Debug($" Checking attackerLegDamage =>  current: {attackerLegDamage} >= behaviorVal: {attackerMaxLegDamageBVal} = {isLegDamageLowEnough}");
+            Mod.Log.Debug?.Write($" Checking attackerLegDamage =>  current: {attackerLegDamage} >= behaviorVal: {attackerMaxLegDamageBVal} = {isLegDamageLowEnough}");
             if (!isLegDamageLowEnough) return false;
 
             // WTF - you only DFA a target if they aren't damaged?
             float targetDamageRatio = AttackEvaluator.MaxDamageLevel(attacker, target);
             float existingTargetDamageBVal = AIHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
             bool isTargetDamagedEnough = targetDamageRatio >= existingTargetDamageBVal;
-            Mod.Log.Debug($" Checking targetDamage =>  current: {targetDamageRatio} >= behaviorVal: {existingTargetDamageBVal} = {isTargetDamagedEnough}");
+            Mod.Log.Debug?.Write($" Checking targetDamage =>  current: {targetDamageRatio} >= behaviorVal: {existingTargetDamageBVal} = {isTargetDamagedEnough}");
             if (!isTargetDamagedEnough) return false;
 
             // TODO: Check attacker and target stability
@@ -79,23 +79,23 @@ namespace CleverGirl.Calculator
             {
                 if (!attackerAA.CanEngageTarget(target))
                 {
-                    Mod.Log.Debug("SOLUTION REJECTED - can't engage target!");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - can't engage target!");
                     continue;
                 }
                 if (meleeDestsForTarget.Count == 0)
                 {
-                    Mod.Log.Debug("SOLUTION REJECTED - can't build path to target!");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - can't build path to target!");
                     continue;
                 }
                 if (targetActor == null)
                 {
-                    Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - target is a building, we can't melee buildings!");
                     continue;
                 }
                 // TODO: This seems wrong... why can't you melee if the target is already engaged with you?
                 if (isStationary)
                 {
-                    Mod.Log.Debug("SOLUTION REJECTED - attacker was stationary, can't melee");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
                     continue;
                 }
             }
