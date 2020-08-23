@@ -41,6 +41,9 @@ namespace CleverGirl.Helper {
 
             // Note: Disabled the evasion fractional checking that Vanilla uses. Should make units more free with ammunition against evasive foes
             //float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
+            // TODO: Reappropriate BehaviorVariableName.Float_EvasiveToHitFloor as floor for all shots?
+
+            // Build three sets of sets; ranged, melee, dfa. Each set contains a set of weapons O(n^2) here
             weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
 
             // Evaluate melee attacks
@@ -68,20 +71,22 @@ namespace CleverGirl.Helper {
                     Mod.Log.Debug($" potential melee retaliation too high, skipping melee.");
                 }
             }
+
             WeaponHelper.FilterWeapons(attackerAA, target, out List<Weapon> rangedWeps, out List<Weapon> meleeWeps, out List<Weapon> dfaWeps);
             AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(rangedWeps, attackerMech, target);
             AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerMech, target);
             AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerMech, target);
 
-            List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
+            List<AttackEvaluation> allAttackSolutions = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
                 attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
-            Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
+            Mod.Log.Debug(string.Format("found {0} different attack solutions", allAttackSolutions.Count));
 
+            // Find the attack with the best damage across all attacks
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
-            for (int m = 0; m < list.Count; m++) {
-                AttackEvaluation attackEvaluation = list[m];
+            for (int m = 0; m < allAttackSolutions.Count; m++) {
+                AttackEvaluation attackEvaluation = allAttackSolutions[m];
                 Mod.Log.Debug($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
                     $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
                 switch (attackEvaluation.AttackType) {
@@ -107,8 +112,8 @@ namespace CleverGirl.Helper {
             List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
 
             // LOGIC: Now, evaluate every set of attacks in the list
-            for (int n = 0; n < list.Count; n++) {
-                AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
+            for (int n = 0; n < allAttackSolutions.Count; n++) {
+                AttackEvaluator.AttackEvaluation attackEvaluation2 = allAttackSolutions[n];
                 Mod.Log.Debug("------");
                 Mod.Log.Debug($"Evaluating attack solution #{n} vs target: {CombatantUtils.Label(targetActor)}");
                 

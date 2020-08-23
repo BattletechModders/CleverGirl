@@ -1,10 +1,7 @@
 ﻿using BattleTech;
-using CleverGirl.Analytics;
 using CleverGirl.Helper;
 using Harmony;
 using System;
-using System.Collections.Generic;
-using UnityEngine;
 using us.frostraptor.modUtils;
 using static AttackEvaluator;
 

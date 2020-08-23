@@ -73,6 +73,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analytics\CombatantAnalytics.cs" />
+    <Compile Include="Calculator\DFACalculator.cs" />
+    <Compile Include="Calculator\MeleeCalculator.cs" />
+    <Compile Include="Calculator\RangedCalculator.cs" />
     <Compile Include="Helper\AOHelper.cs" />
     <Compile Include="Helper\MeleeHelper.cs" />
     <Compile Include="Helper\DFAHelper.cs" />
