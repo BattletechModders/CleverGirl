@@ -55,7 +55,7 @@ namespace CleverGirl {
                 return 0f;
             }
 
-            AttackParams attackParams = new AttackParams(attackType, attacker, target as AbstractActor, attackPosition, weaponList.Count, useRevengeBonus);
+            AttackDetails attackParams = new AttackDetails(attackType, attacker, target as AbstractActor, attackPosition, weaponList.Count, useRevengeBonus);
 
             float totalExpectedDam = 0f;
             for (int i = 0; i < weaponList.Count; i++) {
@@ -72,7 +72,7 @@ namespace CleverGirl {
 
 
         // Calculate the expected value for a given weapon against the target
-        public static float CalculateWeaponDamageEV(Weapon weapon, BehaviorTree bTree, AttackParams attackParams,
+        public static float CalculateWeaponDamageEV(Weapon weapon, BehaviorTree bTree, AttackDetails attackParams,
             AbstractActor attacker, Vector3 attackerPos, ICombatant target, Vector3 targetPos) {
            
             try
@@ -131,7 +131,7 @@ namespace CleverGirl {
                     // Breaching shot is assumed to auto-hit... why?
                     toHitFromPos = 1f;
                 }
-                Mod.Log.Debug($"Evaluating weapon: {weapon.Name} with toHitFromPos:{toHitFromPos}");
+                Mod.Log.Debug?.Write($"Evaluating weapon: {weapon.Name} with toHitFromPos:{toHitFromPos}");
 
                 float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
                 float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
@@ -147,7 +147,7 @@ namespace CleverGirl {
                 }
 
                 DetermineMaxDamageAmmoModePair(weapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
                 weapon.ammoAndMode = maxDamagePair;
 
                 //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
@@ -161,18 +161,18 @@ namespace CleverGirl {
                 //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
                 //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
                 float aggregateDamageEV = maxDamage * weapon.weaponsCondensed;
-                Mod.Log.Debug($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {weapon.weaponsCondensed}");
+                Mod.Log.Debug?.Write($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {weapon.weaponsCondensed}");
 
                 return aggregateDamageEV;
             }
             catch (Exception e)
             {
-                Mod.Log.Error("Failed to calculate weapon damageEV!", e);
+                Mod.Log.Error?.Write("Failed to calculate weapon damageEV!", e);
                 return 0f;
             }
         }
 
-        private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
+        private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackDetails attackParams, AbstractActor attacker, Vector3 attackerPos, 
             ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
         {
             maxDamage = 0f;
@@ -182,7 +182,7 @@ namespace CleverGirl {
             {
                 AmmoModePair ammoModePair = kvp.Key;
                 WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
-                Mod.Log.Debug($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
+                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
 
                 float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
                 foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
@@ -208,7 +208,7 @@ namespace CleverGirl {
 
                     if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
                     {
-                        Mod.Log.Debug($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
+                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
                         dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
                     }
 
@@ -216,7 +216,7 @@ namespace CleverGirl {
                     float armorReduction = 0f;
                     foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
                     {
-                        //Mod.Log.Debug($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
+                        //Mod.Log.Debug?.Write($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
                         if (aBox.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
                         {
                             armorReduction = cgComp.ArmorDamageReduction;
@@ -224,7 +224,7 @@ namespace CleverGirl {
                     }
                     if (armorReduction != 0f)
                     {
-                        Mod.Log.Debug($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
+                        Mod.Log.Debug?.Write($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
                     }
 
                     // TODO: AMS provides a shield to allies
@@ -242,7 +242,7 @@ namespace CleverGirl {
                     else { enemyDamage += dprEV; }
                 }
                 float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
-                Mod.Log.Debug($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
+                Mod.Log.Debug?.Write($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
                 if (damageEV >= maxDamage)
                 {
                     maxDamage = damageEV;
