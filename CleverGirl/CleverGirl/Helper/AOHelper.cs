@@ -23,7 +23,7 @@ namespace CleverGirl.Helper {
 
             Mech attackerMech = attackerAA as Mech;
             float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
-            float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech); ;
+            float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
             Mod.Log.Debug?.Write($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
 
             //float weaponToHitThreshold = attackerAA.BehaviorTree.weaponToHitThreshold;
@@ -73,13 +73,16 @@ namespace CleverGirl.Helper {
             }
 
             WeaponHelper.FilterWeapons(attackerAA, target, out List<Weapon> rangedWeps, out List<Weapon> meleeWeps, out List<Weapon> dfaWeps);
-            AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(rangedWeps, attackerMech, target);
-            AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerMech, target);
-            AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerMech, target);
+            AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(rangedWeps, attackerAA, target);
+            AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerAA, target);
+            AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerAA, target);
 
-            List<AttackEvaluation> allAttackSolutions = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
-                attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            //List<AttackEvaluation> allAttackSolutions = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
+            //    attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            List<AttackEvaluation> allAttackSolutions = new List<AttackEvaluation>() { rangedAE, meleeAE, dfaAE };
             Mod.Log.Debug?.Write(string.Format("found {0} different attack solutions", allAttackSolutions.Count));
+
+            // TODO: Apply mode - CleverGirlHelper.ApplyAmmoMode(wep, cWeapon.ammoAndMode);
 
             // Find the attack with the best damage across all attacks
             float bestRangedEDam = 0f;
@@ -187,6 +190,7 @@ namespace CleverGirl.Helper {
                     };
                     AIUtil.AttackType attackType = attackEvaluation2.AttackType;
 
+                    List<PathNode> dfaDestinations = attackerAA.JumpPathing.GetDFADestsForTarget(targetActor);
                     if (attackType == AIUtil.AttackType.DeathFromAbove) 
                     {
                         attackOrderInfo.IsDeathFromAbove = true;

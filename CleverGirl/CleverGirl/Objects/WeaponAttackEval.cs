@@ -10,6 +10,16 @@ namespace CleverGirl.Objects
         public float ExpectedSelfDamage = 0f;
         public float ExpectedHeatDamage = 0f;
         public float ExpectedStabDamage = 0f;
+        public float ChanceToHit = 0f;
         public AmmoModePair OptimalAmmoMode;
+
+        public float DamagePerHeatRatio
+        {
+            get
+            {
+                return ExpectedDamage / Weapon.HeatGenerated;
+            }
+            private set { }
+        }
     }
 }

@@ -85,114 +85,114 @@ namespace CleverGirl.Helper
         }
 
         // Calculate the expected value for a given weapon against the target
-        public static float CalculateWeaponDamageEV(Weapon weapon, AbstractActor attacker, ICombatant target, AttackDetails attackParams)
-        {
+        //public static float CalculateWeaponDamageEV(Weapon weapon, AbstractActor attacker, ICombatant target, AttackDetails attackParams)
+        //{
 
-            BehaviorTree bTree = attacker.BehaviorTree;
-            Vector3 attackerPos = attacker.CurrentPosition;
-            Vector3 targetPos = target.CurrentPosition;
+        //    BehaviorTree bTree = attacker.BehaviorTree;
+        //    Vector3 attackerPos = attacker.CurrentPosition;
+        //    Vector3 targetPos = target.CurrentPosition;
 
-            try
-            {
-                float attackTypeWeight = 1f;
-                switch (attackParams.AttackType)
-                {
-                    case AIUtil.AttackType.Shooting:
-                        {
-                            attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            break;
-                        }
-                    case AIUtil.AttackType.Melee:
-                        {
-                            Mech targetMech = target as Mech;
-                            Mech attackingMech = attacker as Mech;
-                            if (attackParams.UseRevengeBonus && targetMech != null && attackingMech != null && attackingMech.IsMeleeRevengeTarget(targetMech))
-                            {
-                                attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeRevengeBonus).FloatVal;
-                            }
-                            if (attackingMech != null && weapon == attackingMech.MeleeWeapon)
-                            {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeDamageMultiplier).FloatVal;
-                                if (attackParams.TargetIsUnsteady)
-                                {
-                                    attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeVsUnsteadyTargetDamageMultiplier).FloatVal;
-                                }
-                            }
-                            else
-                            {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            }
-                            break;
-                        }
-                    case AIUtil.AttackType.DeathFromAbove:
-                        {
-                            Mech attackerMech = attacker as Mech;
-                            if (attackerMech != null && weapon == attackerMech.DFAWeapon)
-                            {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_DFADamageMultiplier).FloatVal;
-                            }
-                            else
-                            {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            }
-                            break;
-                        }
-                    default:
-                        Debug.LogError("unknown attack type: " + attackParams.AttackType);
-                        break;
-                }
+        //    try
+        //    {
+        //        float attackTypeWeight = 1f;
+        //        switch (attackParams.AttackType)
+        //        {
+        //            case AIUtil.AttackType.Shooting:
+        //                {
+        //                    attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+        //                    break;
+        //                }
+        //            case AIUtil.AttackType.Melee:
+        //                {
+        //                    Mech targetMech = target as Mech;
+        //                    Mech attackingMech = attacker as Mech;
+        //                    if (attackParams.UseRevengeBonus && targetMech != null && attackingMech != null && attackingMech.IsMeleeRevengeTarget(targetMech))
+        //                    {
+        //                        attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeRevengeBonus).FloatVal;
+        //                    }
+        //                    if (attackingMech != null && weapon == attackingMech.MeleeWeapon)
+        //                    {
+        //                        attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeDamageMultiplier).FloatVal;
+        //                        if (attackParams.TargetIsUnsteady)
+        //                        {
+        //                            attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeVsUnsteadyTargetDamageMultiplier).FloatVal;
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+        //                    }
+        //                    break;
+        //                }
+        //            case AIUtil.AttackType.DeathFromAbove:
+        //                {
+        //                    Mech attackerMech = attacker as Mech;
+        //                    if (attackerMech != null && weapon == attackerMech.DFAWeapon)
+        //                    {
+        //                        attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_DFADamageMultiplier).FloatVal;
+        //                    }
+        //                    else
+        //                    {
+        //                        attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+        //                    }
+        //                    break;
+        //                }
+        //            default:
+        //                Debug.LogError("unknown attack type: " + attackParams.AttackType);
+        //                break;
+        //        }
 
-                float toHitFromPos = weapon.GetToHitFromPosition(target, 1, attackerPos, targetPos, true, attackParams.TargetIsEvasive, false);
-                if (attackParams.IsBreachingShotAttack)
-                {
-                    // Breaching shot is assumed to auto-hit... why?
-                    toHitFromPos = 1f;
-                }
-                Mod.Log.Debug?.Write($"Evaluating weapon: {weapon.Name} with toHitFromPos:{toHitFromPos}");
+        //        float toHitFromPos = weapon.GetToHitFromPosition(target, 1, attackerPos, targetPos, true, attackParams.TargetIsEvasive, false);
+        //        if (attackParams.IsBreachingShotAttack)
+        //        {
+        //            // Breaching shot is assumed to auto-hit... why?
+        //            toHitFromPos = 1f;
+        //        }
+        //        Mod.Log.Debug?.Write($"Evaluating weapon: {weapon.Name} with toHitFromPos:{toHitFromPos}");
 
-                float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
-                float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
+        //        float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
+        //        float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
 
-                float meleeStatusWeights = 0f;
-                if (attackParams.AttackType == AIUtil.AttackType.Melee)
-                {
-                    float bracedMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal;
-                    if (attackParams.TargetIsBraced) { meleeStatusWeights += bracedMeleeMulti; }
+        //        float meleeStatusWeights = 0f;
+        //        if (attackParams.AttackType == AIUtil.AttackType.Melee)
+        //        {
+        //            float bracedMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal;
+        //            if (attackParams.TargetIsBraced) { meleeStatusWeights += bracedMeleeMulti; }
 
-                    float evasiveMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
-                    if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
-                }
+        //            float evasiveMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
+        //            if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
+        //        }
 
-                DetermineMaxDamageAmmoModePair(weapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, 
-                    out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
-                weapon.ammoAndMode = maxDamagePair;
+        //        DetermineMaxDamageAmmoModePair(weapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, 
+        //            out float maxDamage, out AmmoModePair maxDamagePair);
+        //        Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+        //        weapon.ammoAndMode = maxDamagePair;
 
-                //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
-                //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
-                //float stabilityDamPerShotWeight = attackParams.TargetIsUnsteady ? cWeapon.First.Instability() * stabToDamRatio : 0f;
+        //        //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
+        //        //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
+        //        //float stabilityDamPerShotWeight = attackParams.TargetIsUnsteady ? cWeapon.First.Instability() * stabToDamRatio : 0f;
 
-                //float meleeStatusWeights = 0f;
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ? 0f : (damagePerShotFromPos * bracedMeleeMulti));
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ? 0f : (damagePerShotFromPos * evasiveMeleeMult));
+        //        //float meleeStatusWeights = 0f;
+        //        //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ? 0f : (damagePerShotFromPos * bracedMeleeMulti));
+        //        //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ? 0f : (damagePerShotFromPos * evasiveMeleeMult));
 
-                //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
-                //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
+        //        //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
+        //        //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
 
-                return aggregateDamageEV;
-            }
-            catch (Exception e)
-            {
-                Mod.Log.Error?.Write(e, "Failed to calculate weapon damageEV!");
-                return 0f;
-            }
-        }
+        //        return aggregateDamageEV;
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Mod.Log.Error?.Write(e, "Failed to calculate weapon damageEV!");
+        //        return 0f;
+        //    }
+        //}
 
         public static void DetermineMaxDamageAmmoModePair(Weapon weapon, AttackDetails details, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
         {
             maxDamage = 0f;
             maxDamagePair = null;
-            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(weapon, attackerPos, target);
+            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(weapon, details.AttackPosition, details.Target);
             foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
             {
                 AmmoModePair ammoModePair = kvp.Key;

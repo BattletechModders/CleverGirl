@@ -66,101 +66,101 @@ namespace CleverGirl {
             return designatedTarget;
         }
 
-        public static List<AttackEvaluation> EvaluateAttacks(AbstractActor attacker, ICombatant target, 
-            List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
-            bool targetIsEvasive) {
+        //public static List<AttackEvaluation> EvaluateAttacks(AbstractActor attacker, ICombatant target, 
+        //    List<List<CondensedWeapon>>[] weaponSetListByAttack, Vector3 attackPosition, Vector3 targetPosition, 
+        //    bool targetIsEvasive) {
 
-            ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
+        //    ConcurrentBag<AttackEvaluation> allResults = new ConcurrentBag<AttackEvaluation>();
 
-            // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support
-            for (int i = 0; i < 3; i++) {
+        //    // List 0 is ranged weapons, 1 is melee+support, 2 is DFA+support
+        //    for (int i = 0; i < 3; i++) {
 
-                List<List<CondensedWeapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
-                string attackLabel = "ranged attack";
-                if (i == 1) { attackLabel = "melee attacks"; }
-                if (i == 2) { attackLabel = "DFA attacks"; }
-                Mod.Log.Debug?.Write($"Evaluating {weaponSetsByAttackType.Count} {attackLabel}");
+        //        List<List<CondensedWeapon>> weaponSetsByAttackType = weaponSetListByAttack[i];
+        //        string attackLabel = "ranged attack";
+        //        if (i == 1) { attackLabel = "melee attacks"; }
+        //        if (i == 2) { attackLabel = "DFA attacks"; }
+        //        Mod.Log.Debug?.Write($"Evaluating {weaponSetsByAttackType.Count} {attackLabel}");
 
-                if (weaponSetsByAttackType != null) {
+        //        if (weaponSetsByAttackType != null) {
 
-                    //ConcurrentQueue<List<CondensedWeapon>> workQueue = new ConcurrentQueue<List<CondensedWeapon>>();
-                    //for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
-                    //    workQueue.Enqueue(weaponSetsByAttackType[j]);
-                    //}
+        //            //ConcurrentQueue<List<CondensedWeapon>> workQueue = new ConcurrentQueue<List<CondensedWeapon>>();
+        //            //for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
+        //            //    workQueue.Enqueue(weaponSetsByAttackType[j]);
+        //            //}
 
-                    //void evaluateWeaponSet() {
-                    //    Mod.Log.Debug?.Write($" New action started.");
-                    //    SpinWait spin = new SpinWait();
-                    //    while (true) {
+        //            //void evaluateWeaponSet() {
+        //            //    Mod.Log.Debug?.Write($" New action started.");
+        //            //    SpinWait spin = new SpinWait();
+        //            //    while (true) {
 
-                    //        if (workQueue.TryDequeue(out List<Weapon> weaponSet)) {
-                    //            AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
-                    //            attackEvaluation.WeaponList = weaponSet;
-                    //            attackEvaluation.AttackType = (AIUtil.AttackType)i;
-                    //            attackEvaluation.HeatGenerated = (float)AIUtil.HeatForAttack(weaponSet);
+        //            //        if (workQueue.TryDequeue(out List<Weapon> weaponSet)) {
+        //            //            AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
+        //            //            attackEvaluation.WeaponList = weaponSet;
+        //            //            attackEvaluation.AttackType = (AIUtil.AttackType)i;
+        //            //            attackEvaluation.HeatGenerated = (float)AIUtil.HeatForAttack(weaponSet);
 
-                    //            if (unit is Mech mech) {
-                    //                attackEvaluation.HeatGenerated += (float)mech.TempHeat;
-                    //                attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
-                    //            }
+        //            //            if (unit is Mech mech) {
+        //            //                attackEvaluation.HeatGenerated += (float)mech.TempHeat;
+        //            //                attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
+        //            //            }
 
-                    //            attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponSet, target, attackPosition, targetPosition, true, unit);
-                    //            attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponSet, target, attackPosition, targetPosition, targetIsEvasive);
-                    //            allResults.Add(attackEvaluation);
-                    //            Mod.Log.Debug?.Write($"Processed a weaponSet, {workQueue.Count} remaining");
-                    //        } else {
-                    //            Mod.Log.Debug?.Write($"Failed to dequeue, {workQueue.Count} remaining");
-                    //            if (workQueue.Count == 0) { break; } else { spin.SpinOnce(); }
-                    //        }
-                    //    }
-                    //    Mod.Log.Debug?.Write($" New action ending.");
-                    //};
-                    //Parallel.Invoke(evaluateWeaponSet, evaluateWeaponSet, evaluateWeaponSet);
+        //            //            attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponSet, target, attackPosition, targetPosition, true, unit);
+        //            //            attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponSet, target, attackPosition, targetPosition, targetIsEvasive);
+        //            //            allResults.Add(attackEvaluation);
+        //            //            Mod.Log.Debug?.Write($"Processed a weaponSet, {workQueue.Count} remaining");
+        //            //        } else {
+        //            //            Mod.Log.Debug?.Write($"Failed to dequeue, {workQueue.Count} remaining");
+        //            //            if (workQueue.Count == 0) { break; } else { spin.SpinOnce(); }
+        //            //        }
+        //            //    }
+        //            //    Mod.Log.Debug?.Write($" New action ending.");
+        //            //};
+        //            //Parallel.Invoke(evaluateWeaponSet, evaluateWeaponSet, evaluateWeaponSet);
 
-                    for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
-                        List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
-                        Mod.Log.Debug?.Write($"Evaluating {weaponList?.Count} weapons for a {attackLabel}");
-                        AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
-                        attackEvaluation.AttackType = (AIUtil.AttackType)i;
-                        attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
+        //            for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
+        //                List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
+        //                Mod.Log.Debug?.Write($"Evaluating {weaponList?.Count} weapons for a {attackLabel}");
+        //                AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
+        //                attackEvaluation.AttackType = (AIUtil.AttackType)i;
+        //                attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
 
-                        if (attacker is Mech mech) {
-                            attackEvaluation.HeatGenerated += (float)mech.TempHeat;
-                            attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
-                        }
+        //                if (attacker is Mech mech) {
+        //                    attackEvaluation.HeatGenerated += (float)mech.TempHeat;
+        //                    attackEvaluation.HeatGenerated -= (float)mech.AdjustedHeatsinkCapacity;
+        //                }
 
-                        attackEvaluation.ExpectedDamage = AIHelper.ExpectedDamageForAttack(attacker, attackEvaluation.AttackType, 
-                            weaponList, target, attackPosition, targetPosition, true, attacker);
-                        attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
+        //                attackEvaluation.ExpectedDamage = AIHelper.ExpectedDamageForAttack(attacker, attackEvaluation.AttackType, 
+        //                    weaponList, target, attackPosition, targetPosition, true, attacker);
+        //                attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
 
-                        // Expand the list to all weaponDefs, not our condensed ones
-                        Mod.Log.Debug?.Write($"Expanding weapon list for AttackEvaluation");
-                        List<Weapon> aeWeaponList = new List<Weapon>();
-                        foreach (CondensedWeapon cWeapon in weaponList) {
-                            List<Weapon> cWeapons = cWeapon.condensedWeapons;
-                            if (cWeapon.ammoAndMode != null) {
-                                foreach (Weapon wep in cWeapons) {
-                                    Mod.Log.Debug?.Write($" -- Setting ammoMode to: {cWeapon.ammoAndMode.ammoId}_{cWeapon.ammoAndMode.modeId} for weapon: {wep.UIName}");
-                                    CleverGirlHelper.ApplyAmmoMode(wep, cWeapon.ammoAndMode);
-                                }
-                            }
+        //                // Expand the list to all weaponDefs, not our condensed ones
+        //                Mod.Log.Debug?.Write($"Expanding weapon list for AttackEvaluation");
+        //                List<Weapon> aeWeaponList = new List<Weapon>();
+        //                foreach (CondensedWeapon cWeapon in weaponList) {
+        //                    List<Weapon> cWeapons = cWeapon.condensedWeapons;
+        //                    if (cWeapon.ammoAndMode != null) {
+        //                        foreach (Weapon wep in cWeapons) {
+        //                            Mod.Log.Debug?.Write($" -- Setting ammoMode to: {cWeapon.ammoAndMode.ammoId}_{cWeapon.ammoAndMode.modeId} for weapon: {wep.UIName}");
+        //                            CleverGirlHelper.ApplyAmmoMode(wep, cWeapon.ammoAndMode);
+        //                        }
+        //                    }
 
-                            aeWeaponList.AddRange(cWeapon.condensedWeapons);
-                        }
-                        Mod.Log.Debug?.Write($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");
-                        attackEvaluation.WeaponList = aeWeaponList;
-                        allResults.Add(attackEvaluation);
-                    }
-                }
-            }
+        //                    aeWeaponList.AddRange(cWeapon.condensedWeapons);
+        //                }
+        //                Mod.Log.Debug?.Write($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");
+        //                attackEvaluation.WeaponList = aeWeaponList;
+        //                allResults.Add(attackEvaluation);
+        //            }
+        //        }
+        //    }
 
-            List<AttackEvaluator.AttackEvaluation> sortedResults = new List<AttackEvaluator.AttackEvaluation>();
-            sortedResults.AddRange(allResults);
-            sortedResults.Sort((AttackEvaluator.AttackEvaluation a, AttackEvaluator.AttackEvaluation b) => a.ExpectedDamage.CompareTo(b.ExpectedDamage));
-            sortedResults.Reverse();
+        //    List<AttackEvaluator.AttackEvaluation> sortedResults = new List<AttackEvaluator.AttackEvaluation>();
+        //    sortedResults.AddRange(allResults);
+        //    sortedResults.Sort((AttackEvaluator.AttackEvaluation a, AttackEvaluator.AttackEvaluation b) => a.ExpectedDamage.CompareTo(b.ExpectedDamage));
+        //    sortedResults.Reverse();
 
-            return sortedResults;
-        }
+        //    return sortedResults;
+        //}
 
 
         public static bool MeleeDamageOutweighsRisk(Mech attacker, ICombatant target) {
