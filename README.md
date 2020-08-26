@@ -8,11 +8,21 @@ This mod for the [HBS BattleTech](http://battletechgame.com/) attempts to make t
 
 This mod requires [https://github.com/iceraptor/IRBTModUtils/]. Grab the latest release of __IRBTModUtils__ and extract it in your Mods/ directory alongside of this mod.
 
+
+
 ## Changes
 
 Jumping Heat change
 
 
+
+## Assumptions and Warnings
+
+* This mode assumes the following **CombatGameConstants** values are set to 1.0 (vanilla values:
+  * `ToHit.DamageResistanceIndirectFire`
+  * `ToHit.DamageResistanceObstructed` 
+  * `CombatValueMultipliers.GlobalDamageMultiplier`
+* May have an issue with `DamagePerShotPredicted`, since CustomUnits overrides it as well.
 
 ## Configurable Options
 

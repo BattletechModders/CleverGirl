@@ -1,4 +1,7 @@
 ﻿using BattleTech;
+using IRBTModUtils;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CleverGirl.Objects
@@ -15,8 +18,15 @@ namespace CleverGirl.Objects
 
         public readonly AIUtil.AttackType AttackType;
         public readonly MeleeAttackType MeleeAttackType;
-        public readonly AttackImpactQuality Quality;
 
+        // Precalculated attack values
+        public readonly AttackImpactQuality ImpactQuality;
+        public readonly DesignMaskDef AttackerDesignMask;
+        public readonly DesignMaskDef TargetDesignMask;
+
+        // Multipliers for damage done based upon unit stats, designMasks, etc
+        private enum DamageMultiType { Ballistic, Energy, Missile, Support, Generic };
+        private readonly Dictionary<DamageMultiType, float> DamageMultipliers = new Dictionary<DamageMultiType, float>();
 
         public bool TargetIsBraced
         {
@@ -34,7 +44,6 @@ namespace CleverGirl.Objects
             }
             private set { }
         }
-        
         public bool TargetIsUnsteady
         {
             get
@@ -44,7 +53,52 @@ namespace CleverGirl.Objects
             private set { }
         }
 
-        
+        public float BallisticDamageMulti
+        {
+            get 
+            {
+                var hasVal = DamageMultipliers.TryGetValue(DamageMultiType.Ballistic, out float multi);
+                return hasVal ? multi : 1.0f; 
+            } 
+            private set { }
+        }
+        public float EnergyDamageMulti
+        {
+            get
+            {
+                var hasVal = DamageMultipliers.TryGetValue(DamageMultiType.Energy, out float multi);
+                return hasVal ? multi : 1.0f;
+            }
+            private set { }
+        }
+        public float GenericDamageMulti
+        {
+            get
+            {
+                var hasVal = DamageMultipliers.TryGetValue(DamageMultiType.Generic, out float multi);
+                return hasVal ? multi : 1.0f;
+            }
+            private set { }
+        }
+        public float MissileDamageMulti
+        {
+            get
+            {
+                var hasVal = DamageMultipliers.TryGetValue(DamageMultiType.Missile, out float multi);
+                return hasVal ? multi : 1.0f;
+            }
+            private set { }
+        }
+        public float SupportDamageMulti
+        {
+            get
+            {
+                var hasVal = DamageMultipliers.TryGetValue(DamageMultiType.Support, out float multi);
+                return hasVal ? multi : 1.0f;
+            }
+            private set { }
+        }
+
         public AttackDetails(AIUtil.AttackType attackType, AbstractActor attacker, ICombatant target, Vector3 attackPos, Vector3 targetPos, int weaponCount, bool useRevengeBonus)
         {
             this.AttackType = attackType;
@@ -56,19 +110,119 @@ namespace CleverGirl.Objects
             this.TargetPosition = targetPos;
 
             this.UseRevengeBonus = useRevengeBonus;
+            if (attackType == AIUtil.AttackType.Shooting && weaponCount == 1 && attacker.HasBreachingShotAbility)
+            {
+                IsBreachingShotAttack = true;
+            }
 
             this.MeleeAttackType = (attackType != AIUtil.AttackType.Melee) ?
                 ((attackType != AIUtil.AttackType.DeathFromAbove) ? MeleeAttackType.NotSet : MeleeAttackType.DFA)
                 : MeleeAttackType.MeleeWeapon;
 
-            this.Quality = AttackImpactQuality.Solid;
-            this.Quality = attacker.Combat.ToHit.GetBlowQuality(attacker, attackPos, null, target, MeleeAttackType,
+            // Precalculate some values heavily used by the prediction engine
+            this.ImpactQuality = SharedState.Combat.ToHit.GetBlowQuality(attacker, attackPos, null, target, MeleeAttackType,
                 attacker.IsUsingBreachingShotAbility(weaponCount));
+            float impactQualityMulti = SharedState.Combat.ToHit.GetBlowQualityMultiplier(this.ImpactQuality);
 
-            if (attackType == AIUtil.AttackType.Shooting && weaponCount == 1 && attacker.HasBreachingShotAbility)
+            this.AttackerDesignMask = SharedState.Combat.MapMetaData.GetPriorityDesignMaskAtPos(attackPos);
+            this.TargetDesignMask = SharedState.Combat.MapMetaData.GetPriorityDesignMaskAtPos(targetPos);
+
+            // Calculate the total damage multiplier for attacks by weaponType
+            this.DamageMultipliers.Add(DamageMultiType.Ballistic, CalculateDamageMulti(DamageMultiType.Ballistic, impactQualityMulti, target));
+            this.DamageMultipliers.Add(DamageMultiType.Energy, CalculateDamageMulti(DamageMultiType.Energy, impactQualityMulti, target));
+            this.DamageMultipliers.Add(DamageMultiType.Missile, CalculateDamageMulti(DamageMultiType.Missile, impactQualityMulti, target));
+            this.DamageMultipliers.Add(DamageMultiType.Support, CalculateDamageMulti(DamageMultiType.Support, impactQualityMulti, target));
+            this.DamageMultipliers.Add(DamageMultiType.Generic, CalculateDamageMulti(DamageMultiType.Generic, impactQualityMulti, target));
+        }
+
+        // CANT CALCULATE:
+        //  Weapon.DamagePerShotAdjusted (applies jumping modifier from weapon)
+        //  Target weaponType.DamageReductionMultiStat (doesn't follow design mask rules)
+
+        private float CalculateDamageMulti(DamageMultiType type, float impactQualityMulti, ICombatant target)
+        {
+            float totalMulti = 1f;
+            
+            try
             {
-                IsBreachingShotAttack = true;
+                // Common values that won't change
+                float dealtBase = 1.0f * this.AttackerDesignMask.allDamageDealtMultiplier;
+                float dealtBiomeBase = 1.0f * SharedState.Combat.MapMetaData.biomeDesignMask.allDamageDealtMultiplier;
+
+                float takenBase = 1.0f * this.TargetDesignMask.allDamageTakenMultiplier;
+                float takenBiomeBase = 1.0f * SharedState.Combat.MapMetaData.biomeDesignMask.allDamageTakenMultiplier;
+
+                float targetDamageReduction = target.StatCollection.GetValue<float>(ModStats.Actor_DamageReductionMultipierAll);
+
+                // Values that change by weaponValueType
+                float dealtTypeMulti = 1f;
+                float dealtBiomeTypeMulti = 1f;
+                float takenTypeMulti = 1f;
+                float takenBiomeTypeMulti = 1f;
+                switch (type)
+                {
+                    case DamageMultiType.Ballistic:
+                        dealtTypeMulti = dealtBase * this.AttackerDesignMask.ballisticDamageDealtMultiplier;
+                        dealtBiomeTypeMulti = dealtBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.ballisticDamageDealtMultiplier;
+                        takenTypeMulti = takenBase * this.TargetDesignMask.ballisticDamageTakenMultiplier;
+                        takenBiomeTypeMulti = takenBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.ballisticDamageTakenMultiplier;
+                        break;
+                    case DamageMultiType.Energy:
+                        dealtTypeMulti = dealtBase * this.AttackerDesignMask.energyDamageDealtMultiplier;
+                        dealtBiomeTypeMulti = dealtBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.energyDamageDealtMultiplier;
+                        takenTypeMulti = takenBase * this.TargetDesignMask.energyDamageTakenMultiplier;
+                        takenBiomeTypeMulti = takenBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.energyDamageTakenMultiplier;
+                        break;
+                    case DamageMultiType.Missile:
+                        dealtTypeMulti = dealtBase * this.AttackerDesignMask.missileDamageDealtMultiplier;
+                        dealtBiomeTypeMulti = dealtBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.missileDamageDealtMultiplier;
+                        takenTypeMulti = takenBase * this.TargetDesignMask.missileDamageTakenMultiplier;
+                        takenBiomeTypeMulti = takenBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.missileDamageTakenMultiplier;
+                        break;
+                    case DamageMultiType.Support:
+                        dealtTypeMulti = dealtBase * this.AttackerDesignMask.antipersonnelDamageDealtMultiplier;
+                        dealtBiomeTypeMulti = dealtBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.antipersonnelDamageDealtMultiplier;
+                        takenTypeMulti = takenBase * this.TargetDesignMask.antipersonnelDamageTakenMultiplier;
+                        takenBiomeTypeMulti = takenBiomeBase * SharedState.Combat.MapMetaData.biomeDesignMask.antipersonnelDamageTakenMultiplier;
+                        break;
+                    case DamageMultiType.Generic:
+                        dealtTypeMulti = dealtBase;
+                        dealtBiomeTypeMulti = dealtBiomeBase;
+                        takenTypeMulti = takenBase;
+                        takenBiomeTypeMulti = takenBiomeBase;
+                        break;
+                }
+                totalMulti = dealtTypeMulti * dealtBiomeTypeMulti * takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction * impactQualityMulti;
+                Mod.Log.Debug?.Write($" type: {type} has multi: {totalMulti} from =>" +
+                    $"  dealt: {dealtTypeMulti} x dealtBiome: {dealtBiomeTypeMulti} x taken: {takenTypeMulti} x" +
+                    $" takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction} x impactQuality: {impactQualityMulti}");
             }
+            catch (Exception e)
+            {
+                Mod.Log.Error?.Write(e, "Failed to calculate attack multipliers!");
+            }
+
+            return totalMulti;
+        }
+
+        public float DamageMultiForWeapon(Weapon weapon)
+        {
+            float typeDamageReductionMulti = 1.0f;
+            if (!string.IsNullOrEmpty(weapon.WeaponCategoryValue.DamageReductionMultiplierStat))
+            {
+                // Check for target damage reduction specific to this weapon type
+                typeDamageReductionMulti *= this.Target.StatCollection.GetValue<float>(weapon.WeaponCategoryValue.DamageReductionMultiplierStat);
+                Mod.Log.Debug?.Write($" -- Target has damage reduction multi: {typeDamageReductionMulti} from stat: {weapon.WeaponCategoryValue.DamageReductionMultiplierStat}");
+            }
+
+            float staticMulti;
+            if (weapon.WeaponCategoryValue.IsBallistic) staticMulti = this.DamageMultipliers[DamageMultiType.Ballistic];
+            else if (weapon.WeaponCategoryValue.IsEnergy) staticMulti = this.DamageMultipliers[DamageMultiType.Energy];
+            else if (weapon.WeaponCategoryValue.IsMissile) staticMulti = this.DamageMultipliers[DamageMultiType.Missile];
+            else if (weapon.WeaponCategoryValue.IsSupport) staticMulti = this.DamageMultipliers[DamageMultiType.Support];
+            else staticMulti = this.DamageMultipliers[DamageMultiType.Generic];
+
+            return staticMulti * typeDamageReductionMulti;
         }
     }
 }

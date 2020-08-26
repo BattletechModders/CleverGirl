@@ -44,18 +44,20 @@
     <Reference Include="BattleTech.Common">
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
     </Reference>
-    <Reference Include="CustomAmmoCategories">
+    <Reference Include="CustomAmmoCategories, Version=0.0.1.106, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
     </Reference>
     <Reference Include="CustomComponents">
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomComponents\CustomComponents.dll</HintPath>
     </Reference>
-    <Reference Include="IRBTModUtils">
-      <HintPath>..\..\..\IRBTModUtils\IRBTModUtils\IRBTModUtils\bin\Debug\IRBTModUtils.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+    <Reference Include="IRBTModUtils, Version=1.6.3.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\..\..\..\..\Steam\steamapps\common\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -77,15 +79,16 @@
     <Compile Include="Calculator\MeleeCalculator.cs" />
     <Compile Include="Calculator\RangedCalculator.cs" />
     <Compile Include="Helper\AOHelper.cs" />
-    <Compile Include="Helper\MeleeHelper.cs" />
-    <Compile Include="Helper\DFAHelper.cs" />
     <Compile Include="Helper\WeaponHelper.cs" />
+    <Compile Include="ModConsts.cs" />
     <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
     <Compile Include="Helper\AEHelper.cs" />
+    <Compile Include="Objects\AttackDetails.cs" />
     <Compile Include="Objects\CandidateWeapons.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
+    <Compile Include="Objects\WeaponAttackEval.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
     <Compile Include="Patches\GenerateJumpMoveCandidatesNodePatch.cs" />

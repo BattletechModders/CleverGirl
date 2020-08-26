@@ -4,9 +4,11 @@ using CleverGirl.Analytics;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace CleverGirl {
+namespace CleverGirl
+{
 
-    public static class ModState {
+    public static class ModState
+    {
 
         public static bool WithdrawalTriggered = false;
         public static int RoundsUntilWithdrawal = 0;
@@ -22,7 +24,7 @@ namespace CleverGirl {
         public static ConcurrentDictionary<string, ICombatant> CurrentActorNeutrals = new ConcurrentDictionary<string, ICombatant>();
         // Cache of enemy combatants to current actor
         public static ConcurrentDictionary<string, ICombatant> CurrentActorEnemies = new ConcurrentDictionary<string, ICombatant>();
-        
+
         // Cache of local player objectives that need to be destroyed
         public static ConcurrentDictionary<string, ICombatant> LocalPlayerEnemyObjective = new ConcurrentDictionary<string, ICombatant>();
 
@@ -38,7 +40,8 @@ namespace CleverGirl {
         // Needs compound key of invoke count, total runtime?
         public static Dictionary<string, List<long>> InvokeCounts = new Dictionary<string, List<long>>();
 
-        public static void Reset() {
+        public static void Reset()
+        {
             // Reinitialize state
             WithdrawalTriggered = false;
             RoundsUntilWithdrawal = 0;

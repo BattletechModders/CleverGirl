@@ -7,9 +7,11 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 
-namespace CleverGirl {
+namespace CleverGirl
+{
 
-    public class Mod {
+    public class Mod
+    {
 
         public const string HarmonyPackage = "us.frostraptor.CleverGirl";
 
@@ -19,13 +21,17 @@ namespace CleverGirl {
 
         public static readonly Random Random = new Random();
 
-        public static void Init(string modDirectory, string settingsJSON) {
+        public static void Init(string modDirectory, string settingsJSON)
+        {
             ModDir = modDirectory;
 
             Exception settingsE;
-            try {
+            try
+            {
                 Mod.Config = JsonConvert.DeserializeObject<ModConfig>(settingsJSON);
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 settingsE = e;
                 Mod.Config = new ModConfig();
             }
@@ -46,7 +52,8 @@ namespace CleverGirl {
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
 
             // Patch for logging before all others as it's a non-interfering prefix
-            if (Mod.Config.Profile) {
+            if (Mod.Config.Profile)
+            {
                 ProfilePatches.PatchAllMethods(harmony);
             }
 

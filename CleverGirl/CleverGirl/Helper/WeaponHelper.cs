@@ -188,8 +188,7 @@ namespace CleverGirl.Helper
             }
         }
 
-        private static void DetermineMaxDamageAmmoModePair(Weapon weapon, AttackDetails attackParams, AbstractActor attacker, Vector3 attackerPos,
-                    ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
+        public static void DetermineMaxDamageAmmoModePair(Weapon weapon, AttackDetails details, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
         {
             maxDamage = 0f;
             maxDamagePair = null;
@@ -205,7 +204,7 @@ namespace CleverGirl.Helper
                 {
                     float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
                     // Chance to knockdown... but evasion dump is more valuable?
-                    if (attackParams.TargetIsUnsteady)
+                    if (details.TargetIsUnsteady)
                     {
                         dprEV += dpr.HitsCount * dpr.ToHit * (dpr.Instability * stabToDamRatio);
                     }
@@ -254,7 +253,7 @@ namespace CleverGirl.Helper
 
                     // TODO: Can we weight AMS as a weapon when it covers friendlies?
 
-                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
+                    Hostility targetHostility = SharedState.Combat.HostilityMatrix.GetHostility(details.Attacker.team, dpr.Target.team);
                     if (targetHostility == Hostility.FRIENDLY) { alliedDamage += dprEV; }
                     else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
                     else { enemyDamage += dprEV; }

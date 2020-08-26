@@ -1,8 +1,9 @@
 ﻿using BattleTech;
 using CleverGirl.Helper;
 using CleverGirl.Objects;
+using CustAmmoCategories;
+using System;
 using System.Collections.Generic;
-using UnityEngine;
 using static AttackEvaluator;
 
 namespace CleverGirl.Calculator
@@ -40,8 +41,9 @@ namespace CleverGirl.Calculator
         private static WeaponAttackEval EvaluateShootingAttack(Weapon weapon, AttackDetails details)
         {
 
-            BehaviorTree bTree = details.Attacker.BehaviorTree;
+            WeaponAttackEval eval = new WeaponAttackEval();
 
+            BehaviorTree bTree = details.Attacker.BehaviorTree;
             try
             {
                 float attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal; ;
@@ -69,31 +71,39 @@ namespace CleverGirl.Calculator
                     if (details.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
                 }
 
-                DetermineMaxDamageAmmoModePair(weapon, details, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio,
+                WeaponHelper.DetermineMaxDamageAmmoModePair(weapon, details, heatToDamRatio, stabToDamRatio,
                     out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
-                weapon.ammoAndMode = maxDamagePair;
+                Mod.Log.Debug?.Write($" -- Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+                eval.OptimalAmmoMode = maxDamagePair;
 
-                //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
-                //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
+                // Account for the jumping modifier
+                float damagePerShot = weapon.DamagePerShotAdjusted();
+                float weaponDamageMulti = details.DamageMultiForWeapon(weapon);
+                eval.ExpectedDamage = damagePerShot * weapon.ShotsWhenFired * weaponDamageMulti;
+                Mod.Log.Debug?.Write($" -- Expected damage: {eval.ExpectedDamage} = damagePerShotAdjusted: {damagePerShot} x shotsWhenFired: {weapon.ShotsWhenFired} x weaponDamageMulti: {weaponDamageMulti}");
+                eval.ExpectedDamage = maxDamage;
+
+                // NOTE: Heat and Stability damage do NOT seem to be impacted by attack multipliers. See Mech.ResolveWeaponDamage
+                float totalHeatDamage = weapon.HeatDamagePerShot * weapon.ShotsWhenFired;
+                // TODO: Does this account for AOE?
+                eval.ExpectedHeatDamage = totalHeatDamage;
+
+                float totalStabDamage = weapon.Instability() * weapon.ShotsWhenFired;
+                // TODO: Does this account for AOE?
+                eval.ExpectedStabDamage = totalStabDamage;
+
+                // TODO: Calculate some value for this, if you're in the AE?
+                eval.ExpectedSelfDamage = 0f;
+
                 //float stabilityDamPerShotWeight = attackParams.TargetIsUnsteady ? cWeapon.First.Instability() * stabToDamRatio : 0f;
 
-                //float meleeStatusWeights = 0f;
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ? 0f : (damagePerShotFromPos * bracedMeleeMulti));
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ? 0f : (damagePerShotFromPos * evasiveMeleeMult));
-
-                //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
-                //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
-
-                return aggregateDamageEV;
             }
             catch (Exception e)
             {
                 Mod.Log.Error?.Write(e, "Failed to calculate weapon damageEV!");
-                return 0f;
             }
 
-            WeaponAttackEval eval = new WeaponAttackEval();
+            return eval;
         }
     }
 }

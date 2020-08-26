@@ -6,6 +6,7 @@ using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using CustomComponents;
 using Harmony;
+using IRBTModUtils;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -63,7 +64,7 @@ namespace CleverGirl {
                 totalExpectedDam += CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, attacker, attackPosition, target, targetPosition);
             }
 
-            float blowQualityMultiplier = attacker.Combat.ToHit.GetBlowQualityMultiplier(attackParams.Quality);
+            float blowQualityMultiplier = attacker.Combat.ToHit.GetBlowQualityMultiplier(attackParams.ImpactQuality);
             float totalDam = totalExpectedDam * blowQualityMultiplier;
 
             return totalDam;
@@ -169,85 +170,6 @@ namespace CleverGirl {
             {
                 Mod.Log.Error?.Write("Failed to calculate weapon damageEV!", e);
                 return 0f;
-            }
-        }
-
-        private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackDetails attackParams, AbstractActor attacker, Vector3 attackerPos, 
-            ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
-        {
-            maxDamage = 0f;
-            maxDamagePair = null;
-            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
-            foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
-            {
-                AmmoModePair ammoModePair = kvp.Key;
-                WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
-                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
-
-                float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
-                foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
-                {
-                    float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
-                    // Chance to knockdown... but evasion dump is more valuable?
-                    if (attackParams.TargetIsUnsteady)
-                    {
-                        dprEV += dpr.HitsCount * dpr.ToHit * (dpr.Instability * stabToDamRatio);
-                    }
-                    // TODO: If mech, check if if (this._stability > this.UnsteadyThreshold && !base.IsUnsteady), 
-                    // 	num3 *= base.StatCollection.GetValue<float>("ReceivedInstabilityMultiplier");
-                    //  num3 *= base.EntrenchedMultiplier;
-                    // Multiply by number of pips dumped?
-
-                    // TODO: If the mech is overheating, apply different factors than just the raw 'heatToDamRatio'?
-                    // ASSUME CBTBE here?
-                    // Caculate damage from ammo explosion? Calculate potential loss of weapons from shutdown?
-
-                    // If melee - apply weights?
-                    // If target is braced / guarded - reduce damage?
-                    // If target is evasive - weight AoE attacks (since they auto-hit)?
-
-                    if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
-                    {
-                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
-                        dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
-                    }
-
-                    // Check target damage reduction?
-                    float armorReduction = 0f;
-                    foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
-                    {
-                        //Mod.Log.Debug?.Write($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
-                        if (aBox.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
-                        {
-                            armorReduction = cgComp.ArmorDamageReduction;
-                        }
-                    }
-                    if (armorReduction != 0f)
-                    {
-                        Mod.Log.Debug?.Write($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
-                    }
-
-                    // TODO: AMS provides a shield to allies
-
-                    // Need to precalc some values on every combatant - 
-                    //  find objective targets
-                    //  heat to cripple / damage / etc
-                    //  stability damage to unsteady / to knockdown
-
-                    // TODO: Can we weight AMS as a weapon when it covers friendlies?
-
-                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
-                    if (targetHostility == Hostility.FRIENDLY) { alliedDamage += dprEV; }
-                    else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
-                    else { enemyDamage += dprEV; }
-                }
-                float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
-                Mod.Log.Debug?.Write($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
-                if (damageEV >= maxDamage)
-                {
-                    maxDamage = damageEV;
-                    maxDamagePair = ammoModePair;
-                }
             }
         }
 
