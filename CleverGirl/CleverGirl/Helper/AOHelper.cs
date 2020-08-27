@@ -77,8 +77,6 @@ namespace CleverGirl.Helper {
             AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerAA, target);
             AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerAA, target);
 
-            //List<AttackEvaluation> allAttackSolutions = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, 
-            //    attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
             List<AttackEvaluation> allAttackSolutions = new List<AttackEvaluation>() { rangedAE, meleeAE, dfaAE };
             Mod.Log.Debug?.Write(string.Format("found {0} different attack solutions", allAttackSolutions.Count));
 

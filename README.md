@@ -12,7 +12,17 @@ This mod requires [https://github.com/iceraptor/IRBTModUtils/]. Grab the latest 
 
 ## Changes
 
-Jumping Heat change
+### GenerateJumpMoveCandidatesNode Heat Correction
+
+The vanilla implementation of the `GenerateJumpMoveCandidatesNode` calculates jump heat using a 2-dimensional model. This may contribute to the cases where a jump-capable 'mech suddenly overheats and damages themselves, even on poor accuracy shots. Actual heat gain is based upon the 3-dimensional distance travelled. This patch corrects the logic inside the BehaviorNode to compare the 3D heat generation versus the acceptable heat for the unit.
+
+### MakeAttackOrderForTarget Simplifications
+
+`MakeAttackOrderForTarget` is invoked by the AI when it's decided it wants to attack a particular unit. The vanilla implementation calculates the expected damage to that target unit by shooting, melee, and DFA damage. But it does this by evaluating every *combination* of weapons available to the attacker, to maximize damage and minimize utility (such as heat). For a unit with the following weapons: [ LRM5, LRM5, PPC, SLAS, SLAS ] it will calculate 31 different sets of weapons (i.e. a combination without substitution - sum r=1->n n! / (r! ( n-r )!)  for the ranged attack, and 7 sets for melee and DFA (SLAS, SLAS, MELEE). See `AttackEvaluator.MakeAttackOrderForTarget` for the vanilla logic.
+
+This is fairly inefficient (close to O(n^2) complexity) but it gets worse. Inside of `AttackEvaluator.MakeAttackOrder` it executes `MakeAttackOrderForTarget` not only for the lance's designated target, but also **for every enemy target**. This pushes the evaluation complexity to O(n^n) because we're evaluating every possibly weapon set, against every possible target, every time. It does this to find 'better' targets than the lance-designed target, which may be too far away.
+
+CleverGirl subverts this logic by calculating the expected damage for all weapons, then filtering the full set based upon criteria. The criteria changes based upon the attack type. Ranged attacks will filter weapons based upon how much heat they can do, or try to account for breaching shot's ability to punch through cover. Melee and DFA attacks will ignore any weapons that cannot attack. This drops the process back to O(n^2) and results in a 'faster' AI think time.
 
 
 
