@@ -2,6 +2,7 @@
 using CleverGirl.Helper;
 using CleverGirl.Objects;
 using CustAmmoCategories;
+using IRBTModUtils.Extension;
 using System;
 using System.Collections.Generic;
 using static AttackEvaluator;
@@ -17,84 +18,111 @@ namespace CleverGirl.Calculator
         // This expects that weapons has no melee weapons in it, and that target is valid!
         public static AttackEvaluation OptimizeAttack(List<Weapon> weapons, AbstractActor attacker, ICombatant target)
         {
-            /*
-             * 1. Check that weapons, attacker, target is not null
-             * 2. Weapons are already checked for LoF and range
-             * 3. Build an EV and Heat ratio for each weapon
-             * 4. Evaluate heat - sum all heat values, but drop weapons step by step until below safe threshold
-             */
 
-            AttackDetails details = new AttackDetails(attackType: AIUtil.AttackType.Shooting, attacker: attacker,
-                target: target as AbstractActor, attackPos: attacker.CurrentPosition, targetPos: target.CurrentPosition,
-                weaponCount: weapons.Count, useRevengeBonus: true);
-
-            // Build a list of all possible outcomes from shooting
-            List<WeaponAttackEval> weaponAttackEvals = new List<WeaponAttackEval>();
-            for (int i = 0; i < weapons.Count; i++)
+            try
             {
-                Weapon weapon = weapons[i];
-                weaponAttackEvals.Add(EvaluateShootingAttack(weapon, details));
-            }
+                /*
+                    * 1. Check that weapons, attacker, target is not null
+                    * 2. Weapons are already checked for LoF and range
+                    * 3. Build an EV and Heat ratio for each weapon
+                    * 4. Evaluate heat - sum all heat values, but drop weapons step by step until below safe threshold
+                    */
 
-            List<WeaponAttackEval> allowedWeapons = new List<WeaponAttackEval>();
-            // If the attacker is a mech, filter attacks to an acceptable heat level
-            if (attacker is Mech attackerMech)
-            {
-                // Build a state for the atacker defining what level of heat/damage is acceptable.
-                float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
-                // TODO: Improve this / link to CBTBE
-                float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
-                float heatBudget = acceptableHeat - currentHeat;
-                Mod.Log.Debug?.Write($"Allowing up to {heatBudget} addition points of heat.");
+                Mod.Log.Debug?.Write($"Generating ranged AEs for {attacker.DistinctId()} vs. {target.DistinctId()}");
+                AttackDetails details = new AttackDetails(attackType: AIUtil.AttackType.Shooting, attacker: attacker,
+                    target: target as AbstractActor, attackPos: attacker.CurrentPosition, targetPos: target.CurrentPosition,
+                    weaponCount: weapons.Count, useRevengeBonus: true);
 
-                // Now start optimizing. First, sort the list by heatratio 
-                Mod.Log.Trace?.Write($"Sorting {weaponAttackEvals.Count} weapons by heatRatio");
-                weaponAttackEvals.Sort((we1, we2) => we1.DamagePerHeatRatio.CompareTo(we2.DamagePerHeatRatio));
-
-                // What's the highest damage solution we can get without overheating?
-                foreach (WeaponAttackEval wae in weaponAttackEvals)
+                // Build a list of all possible outcomes from shooting
+                List<WeaponAttackEval> weaponAttackEvals = new List<WeaponAttackEval>();
+                for (int i = 0; i < weapons.Count; i++)
                 {
-                    if (wae.Weapon.HeatGenerated <= heatBudget)
-                    {
-                        allowedWeapons.Add(wae);
-                        heatBudget -= wae.Weapon.HeatGenerated;
-                    }
-                    else
-                    {
-                        Mod.Log.Debug?.Write($"Skipping weapon {wae.Weapon.UIName} has it's generated heat: {wae.Weapon.HeatGenerated} exceeds our budget");
-                    }
+                    Weapon weapon = weapons[i];
+                    weaponAttackEvals.Add(EvaluateShootingAttack(weapon, details));
                 }
 
-                // What weapons contribute to overheating but have a very low hit chance?
-                // TODO: Need to handle HasBreachingShotAbility. Check to see if a single weapon that blows through cover is better. Start with highest dam weapon.
+                List<WeaponAttackEval> allowedWeapons = new List<WeaponAttackEval>();
+                // If the attacker is a mech, filter attacks to an acceptable heat level
+                if (attacker is Mech attackerMech)
+                {
+                    // Build a state for the atacker defining what level of heat/damage is acceptable.
+                    float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
+                    // TODO: Improve this / link to CBTBE
+                    float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
+                    float heatBudget = acceptableHeat - currentHeat;
+                    Mod.Log.Debug?.Write($"Allowing up to {heatBudget} additional points of heat.");
 
+                    // Now start optimizing. First, sort the list by heatratio 
+                    Mod.Log.Debug?.Write($"Sorting {weaponAttackEvals.Count} weapons by heatRatio");
+                    weaponAttackEvals.Sort(
+                        (wae1, wae2) => wae1.DamagePerHeatRatio.CompareTo(wae2.DamagePerHeatRatio)
+                        );
+                    Mod.Log.Debug?.Write($" ..Done.");
+
+                    // What's the highest damage solution we can get without overheating?
+                    foreach (WeaponAttackEval wae in weaponAttackEvals)
+                    {
+                        Mod.Log.Debug?.Write($"Evaluating weapon {wae?.Weapon?.UIName} with generated heat: {wae?.Weapon?.HeatGenerated} versus budget");
+                        if (wae.Weapon.HeatGenerated <= heatBudget)
+                        {
+                            Mod.Log.Debug?.Write($"Adding weapon {wae.Weapon.UIName}");
+                            allowedWeapons.Add(wae);
+                            heatBudget -= wae.Weapon.HeatGenerated;
+                        }
+                        else
+                        {
+                            Mod.Log.Debug?.Write($"Skipping weapon {wae.Weapon.UIName}");
+                        }
+                    }
+                    Mod.Log.Debug?.Write("Done budgeting weapons");
+
+                    // What weapons contribute to overheating but have a very low hit chance?
+                    // What weapons contribute to overheating but have a high hit chance - and are they worth it?
+                    // TODO: Need to handle HasBreachingShotAbility. Check to see if a single weapon that blows through cover is better. Start with highest dam weapon.
+
+                }
+                else
+                {
+                    // TODO: Need to handle HasBreachingShotAbility. Check to see if a single weapon that blows through cover is better. Start with highest dam weapon.
+
+                    // Use the full list? Or sort ammo by chance to hit?
+                    allowedWeapons.AddRange(weaponAttackEvals);
+                }
+
+                Mod.Log.Debug?.Write("Adding weapons to AE");
+                AttackEvaluation ae = new AttackEvaluation() 
+                {
+                    AttackType = AIUtil.AttackType.Shooting,
+                    lowestHitChance = 1,
+                    WeaponList = new List<Weapon>()
+                };
+
+                foreach (WeaponAttackEval wae in allowedWeapons)
+                {
+                    Mod.Log.Debug?.Write($"  -- adding {wae.Weapon.UIName} to list.");
+                    ae.HeatGenerated += wae.Weapon.HeatGenerated;
+                    // TODO: This doesn't weight utility damage!
+                    ae.ExpectedDamage += wae.ExpectedDamage + wae.ExpectedHeatDamage + wae.ExpectedStabDamage;                    
+                    if (wae.ChanceToHit < ae.lowestHitChance) ae.lowestHitChance = wae.ChanceToHit;
+                    ae.WeaponList.Add(wae.Weapon);
+                }
+
+                Mod.Log.Debug?.Write($"Returning AE with {ae.WeaponList.Count} weapons.");
+                return ae;
             }
-            else
+            catch (Exception e)
             {
-                // TODO: Need to handle HasBreachingShotAbility. Check to see if a single weapon that blows through cover is better. Start with highest dam weapon.
-
-                // Use the full list? Or sort ammo by chance to hit?
-                allowedWeapons.AddRange(weaponAttackEvals);
+                Mod.Log.Error?.Write(e, "Failed to optimize ranged attack due to error!");
+                return new AttackEvaluation() { AttackType = AIUtil.AttackType.Shooting };
             }
 
-            AttackEvaluation ae = new AttackEvaluation() { lowestHitChance = 1 };
-            foreach (WeaponAttackEval wae in allowedWeapons)
-            {
-                ae.HeatGenerated += wae.Weapon.HeatGenerated;
-                // TODO: This doesn't weight utility damage!
-                ae.ExpectedDamage += wae.ExpectedDamage + wae.ExpectedHeatDamage + wae.ExpectedStabDamage;
-                ae.AttackType = AIUtil.AttackType.Shooting;
-                if (wae.ChanceToHit < ae.lowestHitChance) ae.lowestHitChance = wae.ChanceToHit;
-                ae.WeaponList.Add(wae.Weapon);
-            }
-
-            return ae;
         }
 
         private static WeaponAttackEval EvaluateShootingAttack(Weapon weapon, AttackDetails details)
         {
 
             WeaponAttackEval eval = new WeaponAttackEval();
+            eval.Weapon = weapon;
 
             BehaviorTree bTree = details.Attacker.BehaviorTree;
             try

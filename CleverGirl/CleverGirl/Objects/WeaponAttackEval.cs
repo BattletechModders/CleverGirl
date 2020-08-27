@@ -17,7 +17,7 @@ namespace CleverGirl.Objects
         {
             get
             {
-                return ExpectedDamage / Weapon.HeatGenerated;
+                return Weapon?.HeatGenerated != 0 ? ExpectedDamage / Weapon.HeatGenerated : ExpectedDamage;
             }
             private set { }
         }

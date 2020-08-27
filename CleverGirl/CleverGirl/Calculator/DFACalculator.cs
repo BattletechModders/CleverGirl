@@ -14,7 +14,11 @@ namespace CleverGirl.Calculator
         // This expects that weapons has no melee weapons in it, and that target is valid!
         public static AttackEvaluator.AttackEvaluation OptimizeAttack(List<Weapon> weapons, AbstractActor attacker, ICombatant target)
         {
-            return new AttackEvaluation() { AttackType = AIUtil.AttackType.DeathFromAbove };
+            return new AttackEvaluation() { 
+                AttackType = AIUtil.AttackType.DeathFromAbove,
+                lowestHitChance = 1,                
+                WeaponList = new List<Weapon>()
+            };
         }
 
 

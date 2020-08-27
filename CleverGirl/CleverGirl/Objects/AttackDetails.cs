@@ -125,7 +125,9 @@ namespace CleverGirl.Objects
             float impactQualityMulti = SharedState.Combat.ToHit.GetBlowQualityMultiplier(this.ImpactQuality);
 
             this.AttackerDesignMask = SharedState.Combat.MapMetaData.GetPriorityDesignMaskAtPos(attackPos);
+            if (this.AttackerDesignMask == null) AttackerDesignMask = new DesignMaskDef();
             this.TargetDesignMask = SharedState.Combat.MapMetaData.GetPriorityDesignMaskAtPos(targetPos);
+            if (this.TargetDesignMask== null) TargetDesignMask = new DesignMaskDef();
 
             // Calculate the total damage multiplier for attacks by weaponType
             this.DamageMultipliers.Add(DamageMultiType.Ballistic, CalculateDamageMulti(DamageMultiType.Ballistic, impactQualityMulti, target));
@@ -153,6 +155,9 @@ namespace CleverGirl.Objects
                 float takenBiomeBase = 1.0f * SharedState.Combat.MapMetaData.biomeDesignMask.allDamageTakenMultiplier;
 
                 float targetDamageReduction = target.StatCollection.GetValue<float>(ModStats.Actor_DamageReductionMultipierAll);
+                Mod.Log.Debug?.Write($" dealtBase: {dealtBase} dealtBiomeBase: {dealtBiomeBase} " +
+                    $"takenbase: {takenBase} takenBiomeBase: {takenBiomeBase}  " +
+                    $"targetDamageReduction: {targetDamageReduction}");
 
                 // Values that change by weaponValueType
                 float dealtTypeMulti = 1f;
