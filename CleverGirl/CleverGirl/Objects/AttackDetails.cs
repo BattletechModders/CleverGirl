@@ -14,15 +14,11 @@ namespace CleverGirl.Objects
         public readonly Vector3 TargetPosition;
 
         public readonly bool UseRevengeBonus;
-        public readonly bool IsBreachingShotAttack;
-
-        public readonly AIUtil.AttackType AttackType;
-        public readonly MeleeAttackType MeleeAttackType;
 
         // Precalculated attack values
-        public readonly AttackImpactQuality ImpactQuality;
-        public readonly DesignMaskDef AttackerDesignMask;
-        public readonly DesignMaskDef TargetDesignMask;
+        public readonly AttackImpactQuality BaseRangedImpactQuality;
+        private readonly DesignMaskDef AttackerDesignMask;
+        private readonly DesignMaskDef TargetDesignMask;
 
         // Multipliers for damage done based upon unit stats, designMasks, etc
         private enum DamageMultiType { Ballistic, Energy, Missile, Support, Generic };
@@ -99,10 +95,8 @@ namespace CleverGirl.Objects
             private set { }
         }
 
-        public AttackDetails(AIUtil.AttackType attackType, AbstractActor attacker, ICombatant target, Vector3 attackPos, Vector3 targetPos, int weaponCount, bool useRevengeBonus)
+        public AttackDetails(AbstractActor attacker, ICombatant target, Vector3 attackPos, Vector3 targetPos, bool useRevengeBonus)
         {
-            this.AttackType = attackType;
-
             this.Attacker = attacker;
             this.Target = target;
 
@@ -110,19 +104,12 @@ namespace CleverGirl.Objects
             this.TargetPosition = targetPos;
 
             this.UseRevengeBonus = useRevengeBonus;
-            if (attackType == AIUtil.AttackType.Shooting && weaponCount == 1 && attacker.HasBreachingShotAbility)
-            {
-                IsBreachingShotAttack = true;
-            }
-
-            this.MeleeAttackType = (attackType != AIUtil.AttackType.Melee) ?
-                ((attackType != AIUtil.AttackType.DeathFromAbove) ? MeleeAttackType.NotSet : MeleeAttackType.DFA)
-                : MeleeAttackType.MeleeWeapon;
 
             // Precalculate some values heavily used by the prediction engine
-            this.ImpactQuality = SharedState.Combat.ToHit.GetBlowQuality(attacker, attackPos, null, target, MeleeAttackType,
-                attacker.IsUsingBreachingShotAbility(weaponCount));
-            float impactQualityMulti = SharedState.Combat.ToHit.GetBlowQualityMultiplier(this.ImpactQuality);
+
+            // Impact quality for any melee attack is always solid
+            this.BaseRangedImpactQuality = SharedState.Combat.ToHit.GetBlowQuality(attacker, attackPos,
+                null, target, MeleeAttackType.Punch, false);
 
             this.AttackerDesignMask = SharedState.Combat.MapMetaData.GetPriorityDesignMaskAtPos(attackPos);
             if (this.AttackerDesignMask == null) AttackerDesignMask = new DesignMaskDef();
@@ -130,18 +117,18 @@ namespace CleverGirl.Objects
             if (this.TargetDesignMask== null) TargetDesignMask = new DesignMaskDef();
 
             // Calculate the total damage multiplier for attacks by weaponType
-            this.DamageMultipliers.Add(DamageMultiType.Ballistic, CalculateDamageMulti(DamageMultiType.Ballistic, impactQualityMulti, target));
-            this.DamageMultipliers.Add(DamageMultiType.Energy, CalculateDamageMulti(DamageMultiType.Energy, impactQualityMulti, target));
-            this.DamageMultipliers.Add(DamageMultiType.Missile, CalculateDamageMulti(DamageMultiType.Missile, impactQualityMulti, target));
-            this.DamageMultipliers.Add(DamageMultiType.Support, CalculateDamageMulti(DamageMultiType.Support, impactQualityMulti, target));
-            this.DamageMultipliers.Add(DamageMultiType.Generic, CalculateDamageMulti(DamageMultiType.Generic, impactQualityMulti, target));
+            this.DamageMultipliers.Add(DamageMultiType.Ballistic, CalculateDamageMulti(DamageMultiType.Ballistic, target));
+            this.DamageMultipliers.Add(DamageMultiType.Energy, CalculateDamageMulti(DamageMultiType.Energy, target));
+            this.DamageMultipliers.Add(DamageMultiType.Missile, CalculateDamageMulti(DamageMultiType.Missile, target));
+            this.DamageMultipliers.Add(DamageMultiType.Support, CalculateDamageMulti(DamageMultiType.Support, target));
+            this.DamageMultipliers.Add(DamageMultiType.Generic, CalculateDamageMulti(DamageMultiType.Generic, target));
         }
 
         // CANT CALCULATE:
         //  Weapon.DamagePerShotAdjusted (applies jumping modifier from weapon)
         //  Target weaponType.DamageReductionMultiStat (doesn't follow design mask rules)
 
-        private float CalculateDamageMulti(DamageMultiType type, float impactQualityMulti, ICombatant target)
+        private float CalculateDamageMulti(DamageMultiType type, ICombatant target)
         {
             float totalMulti = 1f;
             
@@ -197,10 +184,10 @@ namespace CleverGirl.Objects
                         takenBiomeTypeMulti = takenBiomeBase;
                         break;
                 }
-                totalMulti = dealtTypeMulti * dealtBiomeTypeMulti * takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction * impactQualityMulti;
+                totalMulti = dealtTypeMulti * dealtBiomeTypeMulti * takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction;
                 Mod.Log.Debug?.Write($" type: {type} has multi: {totalMulti} from =>" +
                     $"  dealt: {dealtTypeMulti} x dealtBiome: {dealtBiomeTypeMulti} x taken: {takenTypeMulti} x" +
-                    $" takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction} x impactQuality: {impactQualityMulti}");
+                    $" takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction}");
             }
             catch (Exception e)
             {

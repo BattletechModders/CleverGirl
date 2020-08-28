@@ -12,8 +12,21 @@ namespace CleverGirl
         public class DecisionWeights
         {
             public float FriendlyDamageMulti = 2.0f;
+
         }
         public DecisionWeights Weights = new DecisionWeights();
+
+        public class DamageConversion
+        {
+
+            public float StructDamToRawDamMulti = 5.0f;
+
+            public float TurretHeatDamToRawDamMulti = 2.0f;
+            public float TurretStabDamToRawDamMulti = 2.0f;
+
+            public float VehicleHeatDamToRawDamMulti = 2.0f;
+            public float VehicleStabDamToRawDamMulti = 2.0f;
+        }
 
         public void LogConfig()
         {

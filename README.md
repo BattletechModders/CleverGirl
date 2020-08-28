@@ -1,16 +1,17 @@
 # CleverGirl
 
-This mod for the [HBS BattleTech](http://battletechgame.com/) attempts to make the AI a bit smarter.
+This mod for the [HBS BattleTech](http://battletechgame.com/) attempts to make the AI a bit smarter, faster, and overall more capable. Note that capable does not necessarily mean 'deadly'.
 
-![Jurassic Part Clever Girl](clever-girl-5b1b38.jpg)
+A brief summary of the changes made in this mod include:
 
+* Correct AI calculation of Jump Heat
+* Simplify AI weapon-set selection 
 
+:warning: This mod requires the latest release of [https://github.com/iceraptor/IRBTModUtils/]. 
 
-This mod requires [https://github.com/iceraptor/IRBTModUtils/]. Grab the latest release of __IRBTModUtils__ and extract it in your Mods/ directory alongside of this mod.
+# Changes
 
-
-
-## Changes
+Details on each change is listed below.
 
 ### GenerateJumpMoveCandidatesNode Heat Correction
 
@@ -18,28 +19,27 @@ The vanilla implementation of the `GenerateJumpMoveCandidatesNode` calculates ju
 
 ### MakeAttackOrderForTarget Simplifications
 
-`MakeAttackOrderForTarget` is invoked by the AI when it's decided it wants to attack a particular unit. The vanilla implementation calculates the expected damage to that target unit by shooting, melee, and DFA damage. But it does this by evaluating every *combination* of weapons available to the attacker, to maximize damage and minimize utility (such as heat). For a unit with the following weapons: [ LRM5, LRM5, PPC, SLAS, SLAS ] it will calculate 31 different sets of weapons (i.e. a combination without substitution - sum r=1->n n! / (r! ( n-r )!)  for the ranged attack, and 7 sets for melee and DFA (SLAS, SLAS, MELEE). See `AttackEvaluator.MakeAttackOrderForTarget` for the vanilla logic.
+`MakeAttackOrderForTarget` is invoked by the AI when it's decided it wants to attack a particular unit. The vanilla implementation calculates the expected damage to that target unit by shooting, melee, and DFA damage. But it does this by evaluating every *combination* of weapons available to the attacker, to maximize damage and minimize utility (such as heat). For a unit with the following weapons: [ LRM5, LRM5, PPC, SLAS, SLAS ] it will calculate 31 different sets of weapons (i.e. a combination without substitution - `sum r=1->n n! / (r! ( n-r )!)`)  for the ranged attack, and 7 sets for melee and DFA (SLAS, SLAS, MELEE). See `AttackEvaluator.MakeAttackOrderForTarget` for the vanilla logic.
 
 This is fairly inefficient (close to O(n^2) complexity) but it gets worse. Inside of `AttackEvaluator.MakeAttackOrder` it executes `MakeAttackOrderForTarget` not only for the lance's designated target, but also **for every enemy target**. This pushes the evaluation complexity to O(n^n) because we're evaluating every possibly weapon set, against every possible target, every time. It does this to find 'better' targets than the lance-designed target, which may be too far away.
 
 CleverGirl subverts this logic by calculating the expected damage for all weapons, then filtering the full set based upon criteria. The criteria changes based upon the attack type. Ranged attacks will filter weapons based upon how much heat they can do, or try to account for breaching shot's ability to punch through cover. Melee and DFA attacks will ignore any weapons that cannot attack. This drops the process back to O(n^2) and results in a 'faster' AI think time.
 
+# Assumptions and Warnings
 
-
-## Assumptions and Warnings
-
-* This mode assumes the following **CombatGameConstants** values are set to 1.0 (vanilla values:
+* This mode assumes the following **CombatGameConstants** values are set to 1.0 (vanilla values). Expected damage predictions will be less accurate the further from 1.0 you have set these values:
   * `ToHit.DamageResistanceIndirectFire`
   * `ToHit.DamageResistanceObstructed` 
   * `CombatValueMultipliers.GlobalDamageMultiplier`
-* May have an issue with `DamagePerShotPredicted`, since CustomUnits overrides it as well.
+* May have an issue with `DamagePerShotPredicted`, since **CustomUnits** overrides it as well.
 
-## Configurable Options
+# Configurable Options
 
 The following values can be tweaked in `mod.json` to customize your experience:
+
 * **Debug:** If true, detailed information will be printed in the logs.
 
-## WIP
+## DEV NOTES
 
 ### General
 Part of the problem is that BT has too many options. These options have to be encoded into decision tree calculations, which is a large series of branching yes/no questions. What's your role (sniper, brawler, escort, etc), what movement best helps that purpose (from a choice of 20-60 hexes and 2-3 movement types (move, sprint, jump)). Balance that against which position makes the most sense when you have 4 weapon bands, and heat to balance as well.
@@ -52,25 +52,7 @@ I've been trying for a while to get a profiler hooked up to confirm my suspicion
 * Normalize weapons and cluster them from a single emitter, instead of resolving the damage weapon-by-shot-by-projectile
 * Implement stronger 'lance commander' logic (already in AI) that defines what the lance wants to do, instead of letting it waffle actor by actor. Pick a model on the player's side to just punish, instead of letting each actor do their own thing.
 
-### Jumping
-AIUtil uses: `if (AIUtil.Get2DDistanceBetweenVector3s(sampledPathNodes[i].Position, this.unit.CurrentPosition) >= 1f)`
-
-But add Mech uses: 
-
-```
-        public void OnJumpComplete(Vector3 finalPosition, Quaternion finalHeading, int sequenceUID)
-        {
-            float num = Vector3.Distance(base.PreviousPosition, finalPosition);
-            this.AddJumpHeat(num);
-```
-
-`I wonder if it's a difference in 2D vs. 3D vector calculation
-That actually would explain it fairly neatly
-I bet they don't overheat on a flat plain
-But only when they are jumping vertical distances
-I bet that's it, yeah.`
-
-## Possible Improvements
+#### MISC
 
 * Add crit-seeking potential to weapons
 * Aggregate weapons into clusters

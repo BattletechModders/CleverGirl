@@ -15,11 +15,11 @@ namespace CleverGirl.Helper
     public static class WeaponHelper
     {
 
-        public static float GetToHitFromPosition(Weapon weapon, AttackDetails details)
+        public static float GetToHitFromPosition(Weapon weapon, AttackDetails details, MeleeAttackType meleeAttackType)
         {
             return SharedState.Combat.ToHit.GetToHitChance(attacker: details.Attacker, weapon: weapon, target: details.Target, 
                 attackPosition: details.AttackPosition, targetPosition: details.TargetPosition, 
-                numTargets: 1, meleeAttackType: details.MeleeAttackType, isMoraleAttack: false);
+                numTargets: 1, meleeAttackType: meleeAttackType, isMoraleAttack: false);
         }
 
         public static void FilterWeapons(AbstractActor attacker, ICombatant target,

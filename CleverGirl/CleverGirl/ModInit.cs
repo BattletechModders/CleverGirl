@@ -9,7 +9,6 @@ using System.Reflection;
 
 namespace CleverGirl
 {
-
     public class Mod
     {
 

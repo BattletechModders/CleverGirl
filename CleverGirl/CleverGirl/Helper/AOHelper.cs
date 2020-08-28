@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using CleverGirl.Calculator;
+using CleverGirl.Objects;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -73,7 +74,12 @@ namespace CleverGirl.Helper {
             }
 
             WeaponHelper.FilterWeapons(attackerAA, target, out List<Weapon> rangedWeps, out List<Weapon> meleeWeps, out List<Weapon> dfaWeps);
-            AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(rangedWeps, attackerAA, target);
+
+            AttackDetails attackDetails = new AttackDetails(attacker: attackerAA, target: target as AbstractActor,
+                attackPos: attackerAA.CurrentPosition, targetPos: target.CurrentPosition, useRevengeBonus: true);
+
+
+            AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(attackDetails, rangedWeps);
             AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerAA, target);
             AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerAA, target);
 
