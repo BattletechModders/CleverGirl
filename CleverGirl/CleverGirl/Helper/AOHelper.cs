@@ -78,7 +78,6 @@ namespace CleverGirl.Helper {
             AttackDetails attackDetails = new AttackDetails(attacker: attackerAA, target: target as AbstractActor,
                 attackPos: attackerAA.CurrentPosition, targetPos: target.CurrentPosition, useRevengeBonus: true);
 
-
             AttackEvaluation rangedAE = RangedCalculator.OptimizeAttack(attackDetails, rangedWeps);
             AttackEvaluation meleeAE = MeleeCalculator.OptimizeAttack(meleeWeps, attackerAA, target);
             AttackEvaluation dfaAE = DFACalculator.OptimizeAttack(dfaWeps, attackerAA, target);

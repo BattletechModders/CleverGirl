@@ -2,7 +2,6 @@
 using CleverGirl.Objects;
 using IRBTModUtils;
 using System.Collections.Generic;
-using static CleverGirl.AIHelper;
 
 namespace CleverGirl.Helper
 {
