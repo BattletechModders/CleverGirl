@@ -3,7 +3,6 @@ namespace CleverGirl {
 
     public class ModConsts
     {
-
     }
 
     public class ModStats 

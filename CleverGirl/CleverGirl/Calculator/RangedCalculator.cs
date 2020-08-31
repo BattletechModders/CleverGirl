@@ -1,11 +1,12 @@
 ﻿using BattleTech;
-using CleverGirl.Helper;
 using CleverGirl.Objects;
+using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using IRBTModUtils;
 using IRBTModUtils.Extension;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static AttackEvaluator;
 
 namespace CleverGirl.Calculator
@@ -32,41 +33,42 @@ namespace CleverGirl.Calculator
                 Mod.Log.Debug?.Write($"Generating ranged AEs for {details.Attacker.DistinctId()} vs. {details.Target.DistinctId()}");
 
                 // Build a list of all possible outcomes from shooting
-                List<WeaponAttackEval> standardEvals = new List<WeaponAttackEval>();
-                List<WeaponAttackEval> breachShotEvals = new List<WeaponAttackEval>();
+                List<WeaponAttackEval> damageOptimized = new List<WeaponAttackEval>();
+                List<WeaponAttackEval> heatOptimized = new List<WeaponAttackEval>();
+                List<WeaponAttackEval> stabOptimized = new List<WeaponAttackEval>();
                 for (int i = 0; i < weapons.Count; i++)
                 {
                     Weapon weapon = weapons[i];
-                    standardEvals.Add(EvaluateShootingAttack(weapon, details, false));
-                    standardEvals.Add(EvaluateShootingAttack(weapon, details, true));
+                    Mod.Log.Debug?.Write($"Optimizing ammoBoxes for weapon: {weapon.UIName}");
+                    (WeaponAttackEval dmgWAE, WeaponAttackEval heatWAE, WeaponAttackEval stabWAE) = OptimizeAmmoPairForAttack(weapon, details);
+                    damageOptimized.Add(dmgWAE);
+                    heatOptimized.Add(heatWAE);
+                    stabOptimized.Add(stabWAE);
                 }
 
-                // TODO: Need to handle HasBreachingShotAbility. Make two lists, prioritize one by damage and apply breaching solid quality (SOLID)
-                //   The other contains a filtered list by heat or other semantics
-                List<WeaponAttackEval> standardFilteredWeapons = FilterForStandardAttack(standardEvals, details);
-                List<WeaponAttackEval> breachingShotWeapons = FilterForBreachingShotAttack(standardEvals, details);
-     
+                // Next, choose a strategy based upon target.
+                List<WeaponAttackEval> selectedAttacks = SelectAttackStrategy(details, damageOptimized, heatOptimized, stabOptimized);
 
+                // Now, filter the attacks based upon the attacker
+                selectedAttacks = FilterForHeatBudget(selectedAttacks, details);
+                selectedAttacks = FilterForAmmo(selectedAttacks, details);
+                selectedAttacks = FilterForBreachingShot(selectedAttacks, details);
+
+                // Finally, build an attackEvaluation
                 Mod.Log.Debug?.Write("Adding weapons to AE");
-                AttackEvaluation ae = new AttackEvaluation() 
+                AttackEvaluation ae = new AttackEvaluation()
                 {
                     AttackType = AIUtil.AttackType.Shooting,
                     lowestHitChance = 1,
                     WeaponList = new List<Weapon>()
                 };
-
-                // heatDmgToOverheatTarget - gate for attack sets that would overheat the target
-                // stabDmgToUnsteadyTarget - gate for attack sets that would knockdown the target
-                // armorReduction bonii - benefit for armor reduction from an attack set
-
-
-                foreach (WeaponAttackEval wae in allowedWeapons)
+                foreach (WeaponAttackEval wae in selectedAttacks)
                 {
                     Mod.Log.Debug?.Write($"  -- adding {wae.Weapon.UIName} to list.");
                     ae.HeatGenerated += wae.Weapon.HeatGenerated;
                     // TODO: This doesn't weight utility damage!
-                    ae.ExpectedDamage += wae.EVDirectDmg + wae.EVHeatDmg + wae.EVStabDmg;                    
-                    if (wae.ChanceToHit < ae.lowestHitChance) ae.lowestHitChance = wae.ChanceToHit;
+                    ae.ExpectedDamage += wae.EVDirectDmg + wae.EVHeat + wae.EVStab;
+                    if (wae.ToHit < ae.lowestHitChance) ae.lowestHitChance = wae.ToHit;
                     ae.WeaponList.Add(wae.Weapon);
                 }
 
@@ -81,182 +83,229 @@ namespace CleverGirl.Calculator
 
         }
 
-        private static List<WeaponAttackEval> FilterForStandardAttack(List<WeaponAttackEval> attackEvals, AttackDetails details)
+        private static List<WeaponAttackEval> SelectAttackStrategy(AttackDetails details, 
+            List<WeaponAttackEval> damageOptimized, List<WeaponAttackEval> heatOptimized, List<WeaponAttackEval> stabOptimized)
         {
-            List<WeaponAttackEval> filteredAttacks = new List<WeaponAttackEval>();
+            List<WeaponAttackEval> selectedAttacks = new List<WeaponAttackEval>();
 
-            // If the attacker is a mech, filter attacks to an acceptable heat level
-            if (details.Attacker is Mech attackerMech)
+            float sumDmg = damageOptimized.Sum(x => x.EVDirectDmg + x.EVStructDam);
+            if (details.Target is Mech targetMech)
             {
-                // Build a state for the atacker defining what level of heat/damage is acceptable.
-                float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
-                // TODO: Improve this / link to CBTBE
-                float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
-                float heatBudget = acceptableHeat - currentHeat;
-                Mod.Log.Debug?.Write($"Allowing up to {heatBudget} additional points of heat.");
-
-                // Now start optimizing. First, sort the list by heatratio 
-                Mod.Log.Debug?.Write($"Sorting {attackEvals.Count} weapons by heatRatio");
-                attackEvals.Sort(
-                    (wae1, wae2) => wae1.DirectDmgPerHeat.CompareTo(wae2.DirectDmgPerHeat)
-                    );
-                Mod.Log.Debug?.Write($" ..Done.");
-
-                // What's the highest damage solution we can get without overheating?
-                foreach (WeaponAttackEval wae in attackEvals)
+                float heatDmg = heatOptimized.Sum(x => x.EVDirectDmg + x.EVStructDam);
+                float sumHeat = heatOptimized.Sum(x => x.EVHeat);
+                float evHeat = sumHeat + targetMech.CurrentHeat;
+                if (evHeat > Mod.Config.Weights.TargetOverheat.OverheatCriticalLevel)
                 {
-                    Mod.Log.Debug?.Write($"Evaluating weapon {wae?.Weapon?.UIName} with generated heat: {wae?.Weapon?.HeatGenerated} versus budget");
-                    if (wae.Weapon.HeatGenerated <= heatBudget)
-                    {
-                        Mod.Log.Debug?.Write($"Adding weapon {wae.Weapon.UIName}");
-                        filteredAttacks.Add(wae);
-                        heatBudget -= wae.Weapon.HeatGenerated;
-                    }
-                    else
-                    {
-                        Mod.Log.Debug?.Write($"Skipping weapon {wae.Weapon.UIName}");
-                    }
+                    Mod.Log.Debug?.Write($"Target evHeat: {evHeat} > criticalOverheat: {Mod.Config.Weights.TargetOverheat.OverheatCriticalLevel}, weighting evDamage by: {Mod.Config.Weights.TargetOverheat.OverheatCriticalMulti}");
+                    heatDmg *= Mod.Config.Weights.TargetOverheat.OverheatCriticalMulti;
                 }
-                Mod.Log.Debug?.Write("Done budgeting weapons");
+                else if (evHeat > Mod.Config.Weights.TargetOverheat.OverheatImpactedLevel)
+                {
+                    Mod.Log.Debug?.Write($"Target evHeat: {evHeat} > impactedOverheat: {Mod.Config.Weights.TargetOverheat.OverheatImpactedLevel}, weighting evDamage by: {Mod.Config.Weights.TargetOverheat.OverheatImpactedMulti}");
+                    heatDmg *= Mod.Config.Weights.TargetOverheat.OverheatImpactedMulti;
+                }
 
-                // What weapons contribute to overheating but have a very low hit chance?
-                // What weapons contribute to overheating but have a high hit chance - and are they worth it?
+                float stabDmg = stabOptimized.Sum(x => x.EVDirectDmg + x.EVStructDam);
+                float sumStab = stabOptimized.Sum(x => x.EVStab);
+                float evStab = sumStab + targetMech.CurrentStability;
+                if (evStab >= targetMech.UnsteadyThreshold && targetMech.EvasivePipsCurrent > 0f)
+                {
+                    stabDmg += targetMech.EvasivePipsCurrent * Mod.Config.Weights.TargetInstability.DamagePerPipLost;
+                }
 
+                if (stabDmg > heatDmg && stabDmg > sumDmg)
+                {
+                    Mod.Log.Debug?.Write($"Using stab-optimized list as dmg: {stabDmg} > heatDmg: {heatDmg} or sumDmg: {sumDmg}");
+                    selectedAttacks.AddRange(stabOptimized);
+                }
+                else if (heatDmg > sumDmg)
+                {
+                    Mod.Log.Debug?.Write($"Using heat-optimized list as dmg: {heatDmg} > sumDmg: {sumDmg}");
+                    selectedAttacks.AddRange(heatOptimized);
+                }
+                else
+                {
+                    Mod.Log.Debug?.Write($"Using damage-optimized list with sumDmg: {sumDmg}");
+                    selectedAttacks.AddRange(damageOptimized);
+                }
             }
             else
             {
+                // Stab damage is ignored, heat damage is converted to extra damage
+                float heatDmg = heatOptimized.Sum(x => x.EVDirectDmg + x.EVStructDam);
+                float sumHeat = heatOptimized.Sum(x => x.EVHeat);
+                heatDmg += sumHeat * Mod.Config.Weights.TargetOverheat.NonMechHeatToDamageMulti;
 
-                // Use the full list? Or sort ammo by chance to hit?
-                filteredAttacks.AddRange(attackEvals);
+                if (heatDmg > sumDmg)
+                {
+                    Mod.Log.Debug?.Write($"Using heat-optimized list as dmg: {heatDmg} > sumDmg: {sumDmg}");
+                    selectedAttacks.AddRange(heatOptimized);
+                }
+                else
+                {
+                    Mod.Log.Debug?.Write($"Using damage-optimized list with sumDmg: {sumDmg}");
+                    selectedAttacks.AddRange(damageOptimized);
+                }
             }
 
-            return attackEvals;
+            return selectedAttacks;
         }
 
-        private static List<WeaponAttackEval> FilterForBreachingShotAttack(List<WeaponAttackEval> attackEvals, AttackDetails details)
+        private static List<WeaponAttackEval> FilterForHeatBudget(List<WeaponAttackEval> attacks, AttackDetails details)
         {
-            List<WeaponAttackEval> filteredAttacks = new List<WeaponAttackEval>();
 
-            attackEvals.Sort(
-                (wae1, wae2) => wae1.EVUtilityDmg)
-            // If the attacker is a mech, filter attacks to an acceptable heat level
-            if (details.Attacker is Mech attackerMech)
+            if (!(details.Attacker is Mech))
             {
-                // Build a state for the atacker defining what level of heat/damage is acceptable.
-                float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
-                // TODO: Improve this / link to CBTBE
-                float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
-                float heatBudget = acceptableHeat - currentHeat;
-                Mod.Log.Debug?.Write($"Allowing up to {heatBudget} additional points of heat.");
+                Mod.Log.Debug?.Write("Attacker is not a mech, returning all weapons from heat filter.");
+                return attacks;
+            }
 
-                // Now start optimizing. First, sort the list by heatratio 
-                Mod.Log.Debug?.Write($"Sorting {attackEvals.Count} weapons by heatRatio");
-                attackEvals.Sort(
-                    (wae1, wae2) => wae1.DirectDmgPerHeat.CompareTo(wae2.DirectDmgPerHeat)
-                    );
-                Mod.Log.Debug?.Write($" ..Done.");
+            // Build a state for the atacker defining what level of heat/damage is acceptable.
+            Mech attackerMech = details.Attacker as Mech;
+            float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
+            
+            // TODO: Improve this / link to CBTBE
+            float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech);
+            float heatBudget = acceptableHeat - currentHeat;
+            Mod.Log.Debug?.Write($"Allowing up to {heatBudget} additional points of heat.");
 
-                // What's the highest damage solution we can get without overheating?
-                foreach (WeaponAttackEval wae in attackEvals)
+            // TODO: Allow for BVars influence on this
+
+            // Now start optimizing. First, sort the list by heatratio 
+            Mod.Log.Debug?.Write($"Sorting {attacks.Count} weapons by heatRatio");
+            attacks.Sort(
+                (wae1, wae2) => wae1.DirectDmgPerHeat.CompareTo(wae2.DirectDmgPerHeat)
+                );
+            Mod.Log.Debug?.Write($" ..Done.");
+
+            // What's the highest damage solution we can get without overheating?
+            List<WeaponAttackEval> filteredAttacks = new List<WeaponAttackEval>();
+            foreach (WeaponAttackEval wae in attacks)
+            {
+                Mod.Log.Debug?.Write($"Evaluating weapon {wae?.Weapon?.UIName} with generated heat: {wae?.Weapon?.HeatGenerated} versus budget");
+                if (wae.Weapon.HeatGenerated <= heatBudget)
                 {
-                    Mod.Log.Debug?.Write($"Evaluating weapon {wae?.Weapon?.UIName} with generated heat: {wae?.Weapon?.HeatGenerated} versus budget");
-                    if (wae.Weapon.HeatGenerated <= heatBudget)
-                    {
-                        Mod.Log.Debug?.Write($"Adding weapon {wae.Weapon.UIName}");
-                        filteredAttacks.Add(wae);
-                        heatBudget -= wae.Weapon.HeatGenerated;
-                    }
-                    else
-                    {
-                        Mod.Log.Debug?.Write($"Skipping weapon {wae.Weapon.UIName}");
-                    }
+                    Mod.Log.Debug?.Write($"Adding weapon {wae.Weapon.UIName}");
+                    filteredAttacks.Add(wae);
+                    heatBudget -= wae.Weapon.HeatGenerated;
                 }
-                Mod.Log.Debug?.Write("Done budgeting weapons");
+                else
+                {
+                    Mod.Log.Debug?.Write($"Skipping weapon {wae.Weapon.UIName}");
+                }
+            }
+            Mod.Log.Debug?.Write("Done budgeting weapons");
 
-                // What weapons contribute to overheating but have a very low hit chance?
-                // What weapons contribute to overheating but have a high hit chance - and are they worth it?
+            return filteredAttacks;
+        }
 
+        private static List<WeaponAttackEval> FilterForAmmo(List<WeaponAttackEval> attacks, AttackDetails details)
+        {
+            return attacks
+                .Where(x => x.Weapon.HasAmmo && x.ToHit > Mod.Config.Weights.AttackerAmmo.MinHitChance)
+                .ToList();
+        }
+
+        private static List<WeaponAttackEval> FilterForBreachingShot(List<WeaponAttackEval> attacks, AttackDetails details)
+        {
+            if (!details.Attacker.HasBreachingShotAbility) return attacks;
+
+            List<WeaponAttackEval> filteredList = new List<WeaponAttackEval>();
+            // TODO: Sort by chance to hit / weight weapons with a higher chance to hit?
+            attacks.Sort((wae1, wae2) => (wae1.EVDirectDmg + wae1.EVStructDam).CompareTo(wae2.EVDirectDmg + wae2.EVStructDam));
+
+            WeaponAttackEval bShotWAE = attacks.First();
+            float bShotDmg = (bShotWAE.EVDirectDmg + bShotWAE.EVStructDam) * Mod.Config.Weights.BreachingShot.Multi;
+            float sumDmg = attacks.Sum(x => x.EVDirectDmg + x.EVStructDam);
+            Mod.Log.Debug?.Write($" breachingShotDmg: {bShotDmg} vs. sumEVDmg: {sumDmg}");
+
+            // TODO: Normalize toHit chance of sumDmg vs. toHit of bShotDmg before comparing damage
+            if (bShotDmg > sumDmg)
+            {
+                Mod.Log.Debug?.Write($"Breaching shot has more damage, returning a list of one item.");
+                filteredList.Add(bShotWAE);
             }
             else
             {
-
-                // Use the full list? Or sort ammo by chance to hit?
-                filteredAttacks.AddRange(attackEvals);
+                Mod.Log.Debug?.Write($"Full attack has more damage, returning the entire list.");
+                filteredList.AddRange(attacks);
             }
 
-            return attackEvals;
+            return filteredList;
         }
-
-        private static WeaponAttackEval EvaluateShootingAttack(Weapon weapon, AttackDetails details, bool isBreachingShot)
+        
+        // Iterate the ammoModePairs on the weapon to find the highest direct damage, heat damage, and stab damage
+        private static (WeaponAttackEval damage, WeaponAttackEval heat, WeaponAttackEval stab) OptimizeAmmoPairForAttack(Weapon weapon, AttackDetails details)
         {
 
-            WeaponAttackEval eval = new WeaponAttackEval();
-            eval.Weapon = weapon;
+            WeaponAttackEval damage = new WeaponAttackEval() { Weapon = weapon };
+            WeaponAttackEval heat = new WeaponAttackEval() { Weapon = weapon };
+            WeaponAttackEval stab = new WeaponAttackEval() { Weapon = weapon };
 
             BehaviorTree bTree = details.Attacker.BehaviorTree;
             try
             {
                 float attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal; ;
 
-                float toHitFromPos = weapon.GetToHitFromPosition(target: details.Target, numTargets: 1, 
-                    attackPosition: details.Attacker.CurrentPosition, targetPosition: details.Target.CurrentPosition, 
-                    bakeInEvasiveModifier: true, targetIsEvasive: details.TargetIsEvasive, isMoraleAttack: false);
-
-                AttackImpactQuality quality = details.BaseRangedImpactQuality;
-                if (isBreachingShot)
+                // Damage prediction assumes an attack quality of Solid. It doesn't apply targetMultis either
+                Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(weapon, details.AttackPosition, details.Target);
+                foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
                 {
-                    // HBS AI assumes breaching shot will hit... why?
-                    Mod.Log.Debug?.Write($"Breaching shot detected, assuming to hit will be 1.0 instead of calculated: {toHitFromPos}");
-                    toHitFromPos = 1f;
-                    // Breaching shots always are treated as solid impacts
-                    quality = AttackImpactQuality.Solid;
+                    AmmoModePair ammoModePair = kvp.Key;
+                    WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
+                    Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
+
+                    WeaponAttackEval wae = new WeaponAttackEval() { Weapon = weapon, AmmoMode = ammoModePair };
+                    foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
+                    {
+                        Hostility targetHostility = SharedState.Combat.HostilityMatrix.GetHostility(details.Attacker.team, dpr.Target.team);
+                        if (targetHostility == Hostility.FRIENDLY) 
+                        {
+                            // Friendly and self damage weights directly into a self damage, and doesn't contribute to any attacks
+                            float damageMulti;
+                            if (details.Attacker.GUID == dpr.Target.GUID)
+                            {
+                                damageMulti = Mod.Config.Weights.DamageMultis.Self;
+                            }
+                            else
+                            {
+                                damageMulti = Mod.Config.Weights.DamageMultis.Friendly;
+                            }
+
+                            wae.EVFriendlyDmg += dpr.ToHit * dpr.Normal * damageMulti;
+                            wae.EVFriendlyDmg += dpr.ToHit * dpr.AP * damageMulti;
+                            wae.EVFriendlyDmg += dpr.ToHit * dpr.Heat * damageMulti;
+                            wae.EVFriendlyDmg += dpr.ToHit * dpr.Instability * damageMulti;
+                        }
+                        else if (targetHostility == Hostility.NEUTRAL) 
+                        {
+                            // Neutrals are weighted lower, to emphasize attacking enemies more directly
+                            wae.EVDirectDmg += dpr.ToHit * dpr.Normal * Mod.Config.Weights.DamageMultis.Neutral;
+                            wae.EVStructDam += dpr.ToHit * dpr.AP * Mod.Config.Weights.DamageMultis.Neutral;
+                            wae.EVHeat += dpr.ToHit * dpr.Heat * Mod.Config.Weights.DamageMultis.Neutral;
+                            wae.EVStab += dpr.ToHit * dpr.Instability * Mod.Config.Weights.DamageMultis.Neutral;
+                        }
+                        else 
+                        {
+                            wae.EVDirectDmg += dpr.ToHit * dpr.Normal;
+                            wae.EVStructDam += dpr.ToHit * dpr.AP;
+                            wae.EVHeat += dpr.ToHit * dpr.Heat;
+                            wae.EVStab += dpr.ToHit * dpr.Instability;
+                        }
+                        if (!dpr.isAoE && dpr.ToHit > wae.ToHit) wae.ToHit = dpr.ToHit;
+                    }
+
+                    if ((wae.EVDirectDmg + wae.EVStructDam) >= (damage.EVDirectDmg + damage.EVStructDam)) damage = wae;
+                    if (wae.EVHeat >= heat.EVHeat) heat = wae;
+                    if (wae.EVStructDam >= stab.EVStructDam) stab = wae;
                 }
-                float impactQualityMulti = SharedState.Combat.ToHit.GetBlowQualityMultiplier(details.BaseRangedImpactQuality);
-
-                Mod.Log.Debug?.Write($"Evaluating weapon: {weapon.Name} with toHitFromPos:{toHitFromPos}");
-                eval.ChanceToHit = toHitFromPos;
-
-                // Evaluate the best weapon mode (i.e. max damage)
-                float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
-                float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
-                WeaponHelper.DetermineMaxDamageAmmoModePair(weapon, details, heatToDamRatio, stabToDamRatio,
-                    out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug?.Write($" -- Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
-                eval.OptimalAmmoMode = maxDamagePair;
-
-                // Account for the jumping modifier
-                float weaponDamageMulti = details.DamageMultiForWeapon(weapon) * impactQualityMulti;
-                float totalDirectDamage = weapon.DamagePerShot * weapon.ShotsWhenFired * weaponDamageMulti;
-                Mod.Log.Debug?.Write($" -- totalDirectDamage: {totalDirectDamage} = damagePerShotAdjusted: {weapon.DamagePerShot} x shotsWhenFired: {weapon.ShotsWhenFired} " +
-                    $"x weaponDamageMulti: {weaponDamageMulti} x impactQualityMulti: {impactQualityMulti}");                
-                eval.EVDirectDmg = maxDamage * toHitFromPos;
-                Mod.Log.Debug?.Write($" -- directDamageEV: {eval.EVDirectDmg} = totalDamage: {totalDirectDamage} x toHitFromPos: {toHitFromPos} ");
-
-                // If the weapon does structure damage, record that as well.
-
-
-                // NOTE: Heat and Stability damage do NOT seem to be impacted by attack multipliers. See Mech.ResolveWeaponDamage
-
-                float totalHeatDamage = weapon.HeatDamagePerShot * weapon.ShotsWhenFired;
-                // TODO: Does this account for AOE?
-                eval.EVHeatDmg = totalHeatDamage * toHitFromPos;
-                Mod.Log.Debug?.Write($" -- expectedHeatDamage: {eval.EVHeatDmg} = totalHeatDamage: {totalHeatDamage} x toHitFromPos: {toHitFromPos} ");
-
-                float totalStabDamage = weapon.Instability() * weapon.ShotsWhenFired;
-                // TODO: Does this account for AOE?
-                eval.EVStabDmg = totalStabDamage;
-                Mod.Log.Debug?.Write($" -- expectedStabDamage: {eval.EVStabDmg} = totalStabDamage: {totalStabDamage} x toHitFromPos: {toHitFromPos} ");
-
-                // TODO: Calculate some value for this, if you're in the AE?
-                eval.EVSelfDmg = 0f;
-
             }
             catch (Exception e)
             {
                 Mod.Log.Error?.Write(e, "Failed to calculate weapon damageEV!");
             }
 
-            return eval;
+            return (damage, heat, stab);
         }
     }
 }

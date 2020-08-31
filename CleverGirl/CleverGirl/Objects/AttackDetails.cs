@@ -184,10 +184,16 @@ namespace CleverGirl.Objects
                         takenBiomeTypeMulti = takenBiomeBase;
                         break;
                 }
-                totalMulti = dealtTypeMulti * dealtBiomeTypeMulti * takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction;
+
+                // WARN: KMission calcs the weapon damage in the damagePredictor, so ignore dealt multis
+                //Mod.Log.Debug?.Write($" type: {type} has multi: {totalMulti} from =>" +
+                //    $"  dealt: {dealtTypeMulti} x dealtBiome: {dealtBiomeTypeMulti} x taken: {takenTypeMulti} x" +
+                //    $" takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction}");
+
+                //totalMulti = dealtTypeMulti * dealtBiomeTypeMulti * takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction;
+                totalMulti = takenTypeMulti * takenBiomeTypeMulti * targetDamageReduction;
                 Mod.Log.Debug?.Write($" type: {type} has multi: {totalMulti} from =>" +
-                    $"  dealt: {dealtTypeMulti} x dealtBiome: {dealtBiomeTypeMulti} x taken: {takenTypeMulti} x" +
-                    $" takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction}");
+                    "taken: {takenTypeMulti} x takenBiome: {takenBiomeTypeMulti} x targetDamReduction: {targetDamageReduction}");
             }
             catch (Exception e)
             {

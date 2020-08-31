@@ -6,29 +6,20 @@ namespace CleverGirl.Objects
     public class WeaponAttackEval
     {
         public Weapon Weapon;
-        // The amount of direct damage (armor) that will be done
+
         public float EVDirectDmg = 0f;
-
-        // The amount of structure damage we predict will be done
         public float EVStructDam = 0f;
-        
-        // The amount of damage done to the attacker
-        public float EVSelfDmg = 0f;
-        
-        // The amount of heat damage applied to the target
-        public float EVHeatDmg = 0f;
+        public float EVHeat = 0f;
+        public float EVStab = 0f;
 
-        // The amount of stability damage applied to the target
-        public float EVStabDmg = 0f;
-
-        // The amount of utility applied to the target (i.e. knockdown, acid, etc)
-        public float EVUtility = 0f;
-        
-        // The chance to hit for this weapon
-        public float ChanceToHit = 0f;
+        // The sum of all friendly damage (including self) likely to be created
+        public float EVFriendlyDmg = 0f;
+       
+        // The to hit chance for this weapon; the greatest value for non-AoE attacks.
+        public float ToHit = 0f;
 
         // The best AmmoModePair for this weapon and target
-        public AmmoModePair OptimalAmmoMode;
+        public AmmoModePair AmmoMode;
 
         public float DirectDmgPerHeat
         {

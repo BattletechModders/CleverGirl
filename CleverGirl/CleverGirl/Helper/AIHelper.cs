@@ -171,7 +171,9 @@ namespace CleverGirl {
 
         // --- BEHAVIOR VARIABLE BELOW
         public static BehaviorVariableValue GetCachedBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name) {
-            return ModState.BehaviorVarValuesCache.GetOrAdd(name, GetBehaviorVariableValue(bTree, name));
+
+            Func<BehaviorVariableName, BehaviorVariableValue> memoize = (n) => GetBehaviorVariableValue(bTree, n);
+            return ModState.BehaviorVarValuesCache.GetOrAdd(name, memoize);
         }
 
         // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE
