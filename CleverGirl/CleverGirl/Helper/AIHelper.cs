@@ -5,6 +5,7 @@ using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using CustomComponents;
 using Harmony;
+using IRBTModUtils.Extension;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -165,7 +166,7 @@ namespace CleverGirl {
                     // Breaching shot is assumed to auto-hit... why?
                     toHitFromPos = 1f;
                 }
-                Mod.Log.Debug($"Evaluating weapon: {cWeapon.First.Name} with toHitFromPos:{toHitFromPos}");
+                Mod.Log.Debug?.Write($"Evaluating weapon: {cWeapon.First.Name} with toHitFromPos:{toHitFromPos}");
 
                 float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
                 float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
@@ -181,7 +182,7 @@ namespace CleverGirl {
                 }
 
                 DetermineMaxDamageAmmoModePair(cWeapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
                 cWeapon.ammoAndMode = maxDamagePair;
 
                 //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
@@ -195,13 +196,13 @@ namespace CleverGirl {
                 //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
                 //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
                 float aggregateDamageEV = maxDamage * cWeapon.weaponsCondensed;
-                Mod.Log.Debug($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {cWeapon.weaponsCondensed}");
+                Mod.Log.Debug?.Write($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {cWeapon.weaponsCondensed}");
 
                 return aggregateDamageEV;
             }
             catch (Exception e)
             {
-                Mod.Log.Error("Failed to calculate weapon damageEV!", e);
+                Mod.Log.Error?.Write(e, "Failed to calculate weapon damageEV!");
                 return 0f;
             }
         }
@@ -216,7 +217,7 @@ namespace CleverGirl {
             {
                 AmmoModePair ammoModePair = kvp.Key;
                 WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
-                Mod.Log.Debug($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
+                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
 
                 float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
                 foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
@@ -242,24 +243,24 @@ namespace CleverGirl {
 
                     if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
                     {
-                        Mod.Log.Debug($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
+                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
                         dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
                     }
 
                     // Check target damage reduction?
-                    float armorReduction = 0f;
-                    foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
-                    {
-                        //Mod.Log.Debug($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
-                        if (aBox.mechComponentRef.Def.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
-                        {
-                            armorReduction = cgComp.ArmorDamageReduction;
-                        }
-                    }
-                    if (armorReduction != 0f)
-                    {
-                        Mod.Log.Debug($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
-                    }
+                    //float armorReduction = 0f;
+                    //foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
+                    //{
+                    //    //Mod.Log.Debug?.Write($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
+                    //    if (aBox.componentDef.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
+                    //    {
+                    //        armorReduction = cgComp.ArmorDamageReduction;
+                    //    }
+                    //}
+                    //if (armorReduction != 0f)
+                    //{
+                    //    Mod.Log.Debug?.Write($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
+                    //}
 
                     // TODO: AMS provides a shield to allies
 
@@ -276,7 +277,7 @@ namespace CleverGirl {
                     else { enemyDamage += dprEV; }
                 }
                 float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
-                Mod.Log.Debug($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
+                Mod.Log.Debug?.Write($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
                 if (damageEV >= maxDamage)
                 {
                     maxDamage = damageEV;
@@ -305,6 +306,40 @@ namespace CleverGirl {
                 }
             }
 
+        }
+
+        public static bool IsDFAAcceptable(AbstractActor attacker, ICombatant targetCombatant)
+        {
+            AbstractActor targetActor = targetCombatant as AbstractActor;
+            if (targetActor == null)
+            {
+                Mod.Log.Debug?.Write($" Target {targetCombatant.DistinctId()} is not an actor, cannot DFA");
+                return false;
+            }
+
+            if (!attacker.CanDFATargetFromPosition(targetActor, attacker.CurrentPosition))
+            {
+                Mod.Log.Debug?.Write($"Attacker cannot DFA from currentPosition.");
+                return false;
+            }
+
+            float attackerLegDamage = 0f;
+            Mech mech = attacker as Mech;
+            if (mech != null)
+            {
+                attackerLegDamage = AttackEvaluator.LegDamageLevel(mech);
+            }
+            float ownMaxLegDam = GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
+            if (attackerLegDamage >= ownMaxLegDam)
+            {
+                Mod.Log.Debug?.Write($"Attack will damage own legs too much - skipping DFA! Self leg damage: {attackerLegDamage} >= OwnMaxLegDamageForDFAAttack BehVar: {ownMaxLegDam}");
+                return false;
+            }
+
+            float existingTargetDam = GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
+            float maxTargetDam = AttackEvaluator.MaxDamageLevel(attacker, targetActor);
+            Mod.Log.Debug?.Write($"Returning {maxTargetDam >= existingTargetDam} as maxTargetDamage: {maxTargetDam} >= ExistingTargetDamageForDFAAttack BehVar: {existingTargetDam}");
+            return maxTargetDam >= existingTargetDam;
         }
 
         // --- BEHAVIOR VARIABLE BELOW

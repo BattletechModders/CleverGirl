@@ -17,7 +17,7 @@ namespace CleverGirl {
         readonly private Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
 
         public CandidateWeapons(AbstractActor attacker, ICombatant target) {
-            Mod.Log.Debug($"Calculating candidate weapons");
+            Mod.Log.Debug?.Write($"Calculating candidate weapons");
 
             for (int i = 0; i < attacker.Weapons.Count; i++) {
                 Weapon weapon = attacker.Weapons[i];
@@ -25,7 +25,7 @@ namespace CleverGirl {
                 CondensedWeapon cWeapon = new CondensedWeapon(weapon);
 
                 if (cWeapon.First.CanFire) {
-                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' included");
+                    Mod.Log.Debug?.Write($" -- '{cWeapon.First.defId}' included");
                     string cWepKey = cWeapon.First.weaponDef.Description.Id;
                     if (condensed.ContainsKey(cWepKey)) {
                         condensed[cWepKey].AddWeapon(weapon);
@@ -33,15 +33,15 @@ namespace CleverGirl {
                         condensed[cWepKey] = cWeapon;
                     }
                 } else {
-                    Mod.Log.Debug($" -- '{cWeapon.First.defId}' excluded (disabled or out of ammo)");
+                    Mod.Log.Debug?.Write($" -- '{cWeapon.First.defId}' excluded (disabled or out of ammo)");
                 }
             }
-            Mod.Log.Debug("  -- DONE");
+            Mod.Log.Debug?.Write("  -- DONE");
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
 
             float distance = (target.CurrentPosition - attacker.CurrentPosition).magnitude;
-            Mod.Log.Debug($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
+            Mod.Log.Debug?.Write($" Checking range {distance} and LOF from attacker: ({attacker.CurrentPosition}) to " +
                 $"target: ({target.CurrentPosition})");
             foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
                 CondensedWeapon cWeapon = kvp.Value;
@@ -49,15 +49,15 @@ namespace CleverGirl {
                 bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
                 bool withinRange = distance <= cWeapon.First.MaxRange;
                 if (willFireAtTarget && withinRange) {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
                     RangedWeapons.Add(cWeapon);
                 } else {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
                         $"or has no LOF, skipping.");
                 }
 
-                if (cWeapon.First.WeaponCategoryValue.IsSupport) {
-                    Mod.Log.Debug($" ({cWeapon.First.defId}) is anti-personnel, adding to melee and DFA sets.");
+                if (cWeapon.First.WeaponCategoryValue.CanUseInMelee) {
+                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) can be used in melee, adding to melee and DFA sets.");
                     MeleeWeapons.Add(cWeapon);
                     DFAWeapons.Add(cWeapon);
                 }
@@ -70,7 +70,7 @@ namespace CleverGirl {
         // Initialize any decision-making data necessary to make an attack order. Fetch the current state of opponents
         //  and cache it for quick look-up
         public static void InitializeAttackOrderDecisionData(AbstractActor unit) {
-            Mod.Log.Trace("AE:MAO:pre - entered.");
+            Mod.Log.Trace?.Write("AE:MAO:pre - entered.");
             ModState.BehaviorVarValuesCache.Clear();
 
             // Reset the analytics cache
@@ -81,20 +81,20 @@ namespace CleverGirl {
             ModState.CurrentActorEnemies.Clear();
 
             // Prime the caches with information about all targets
-            Mod.Log.Debug($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
+            Mod.Log.Debug?.Write($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
             foreach (ICombatant combatant in unit.Combat.GetAllImporantCombatants()) {
                 if (combatant.GUID == unit.GUID) { continue; }
 
                 // Will only include alive actors and buildings that are 'tab' targets
                 if (unit.Combat.HostilityMatrix.IsFriendly(unit.team, combatant.team)) {
                     ModState.CurrentActorAllies[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
+                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
                 } else if (unit.Combat.HostilityMatrix.IsEnemy(unit.team, combatant.team)) {
                     ModState.CurrentActorEnemies[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
+                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
                 } else {
                     ModState.CurrentActorNeutrals[combatant.GUID] = combatant;
-                    Mod.Log.Debug($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
+                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
                 }
 
                 // Add the combatant to the analytics
@@ -135,7 +135,7 @@ namespace CleverGirl {
                 string attackLabel = "ranged attack";
                 if (i == 1) { attackLabel = "melee attacks"; }
                 if (i == 2) { attackLabel = "DFA attacks"; }
-                Mod.Log.Debug($"Evaluating {weaponSetsByAttackType.Count} {attackLabel}");
+                Mod.Log.Debug?.Write($"Evaluating {weaponSetsByAttackType.Count} {attackLabel}");
 
                 if (weaponSetsByAttackType != null) {
 
@@ -145,7 +145,7 @@ namespace CleverGirl {
                     //}
 
                     //void evaluateWeaponSet() {
-                    //    Mod.Log.Debug($" New action started.");
+                    //    Mod.Log.Debug?.Write($" New action started.");
                     //    SpinWait spin = new SpinWait();
                     //    while (true) {
 
@@ -163,19 +163,19 @@ namespace CleverGirl {
                     //            attackEvaluation.ExpectedDamage = AIUtil.ExpectedDamageForAttack(unit, attackEvaluation.AttackType, weaponSet, target, attackPosition, targetPosition, true, unit);
                     //            attackEvaluation.lowestHitChance = AIUtil.LowestHitChance(weaponSet, target, attackPosition, targetPosition, targetIsEvasive);
                     //            allResults.Add(attackEvaluation);
-                    //            Mod.Log.Debug($"Processed a weaponSet, {workQueue.Count} remaining");
+                    //            Mod.Log.Debug?.Write($"Processed a weaponSet, {workQueue.Count} remaining");
                     //        } else {
-                    //            Mod.Log.Debug($"Failed to dequeue, {workQueue.Count} remaining");
+                    //            Mod.Log.Debug?.Write($"Failed to dequeue, {workQueue.Count} remaining");
                     //            if (workQueue.Count == 0) { break; } else { spin.SpinOnce(); }
                     //        }
                     //    }
-                    //    Mod.Log.Debug($" New action ending.");
+                    //    Mod.Log.Debug?.Write($" New action ending.");
                     //};
                     //Parallel.Invoke(evaluateWeaponSet, evaluateWeaponSet, evaluateWeaponSet);
 
                     for (int j = 0; j < weaponSetsByAttackType.Count; j++) {
                         List<CondensedWeapon> weaponList = weaponSetsByAttackType[j];
-                        Mod.Log.Debug($"Evaluating {weaponList?.Count} weapons for a {attackLabel}");
+                        Mod.Log.Debug?.Write($"Evaluating {weaponList?.Count} weapons for a {attackLabel}");
                         AttackEvaluator.AttackEvaluation attackEvaluation = new AttackEvaluator.AttackEvaluation();
                         attackEvaluation.AttackType = (AIUtil.AttackType)i;
                         attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
@@ -189,20 +189,20 @@ namespace CleverGirl {
                         attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
 
                         // Expand the list to all weaponDefs, not our condensed ones
-                        Mod.Log.Debug($"Expanding weapon list for AttackEvaluation");
+                        Mod.Log.Debug?.Write($"Expanding weapon list for AttackEvaluation");
                         List<Weapon> aeWeaponList = new List<Weapon>();
                         foreach (CondensedWeapon cWeapon in weaponList) {
                             List<Weapon> cWeapons = cWeapon.condensedWeapons;
                             if (cWeapon.ammoAndMode != null) {
                                 foreach (Weapon wep in cWeapons) {
-                                    Mod.Log.Debug($" -- Setting ammoMode to: {cWeapon.ammoAndMode.ammoId}_{cWeapon.ammoAndMode.modeId} for weapon: {wep.UIName}");
+                                    Mod.Log.Debug?.Write($" -- Setting ammoMode to: {cWeapon.ammoAndMode.ammoId}_{cWeapon.ammoAndMode.modeId} for weapon: {wep.UIName}");
                                     CleverGirlHelper.ApplyAmmoMode(wep, cWeapon.ammoAndMode);
                                 }
                             }
 
                             aeWeaponList.AddRange(cWeapon.condensedWeapons);
                         }
-                        Mod.Log.Debug($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");
+                        Mod.Log.Debug?.Write($"List size {weaponList?.Count} was expanded to: {aeWeaponList?.Count}");
                         attackEvaluation.WeaponList = aeWeaponList;
                         allResults.Add(attackEvaluation);
                     }
@@ -219,16 +219,16 @@ namespace CleverGirl {
 
 
         public static bool MeleeDamageOutweighsRisk(Mech attacker, ICombatant target) {
-
+            
             float attackerMeleeDam = AIUtil.ExpectedDamageForMeleeAttackUsingUnitsBVs(attacker, target, attacker.CurrentPosition, target.CurrentPosition, false, attacker);
             if (attackerMeleeDam <= 0f) {
-                Mod.Log.Debug("Attacker has no expected damage, melee is too risky.");
+                Mod.Log.Debug?.Write("Attacker has no expected damage, melee is too risky.");
                 return false;
             }
 
             Mech targetMech = target as Mech;
             if (targetMech == null) {
-                Mod.Log.Debug("Target has no expected damage, melee is safe.");
+                Mod.Log.Debug?.Write("Target has no expected damage, melee is safe.");
                 return true;
             }
 
@@ -236,7 +236,7 @@ namespace CleverGirl {
             float targetMeleeDam = AIUtil.ExpectedDamageForMeleeAttackUsingUnitsBVs(targetMech, attacker, targetMech.CurrentPosition, targetMech.CurrentPosition, false, attacker);
             float meleeDamageRatio = attackerMeleeDam / targetMeleeDam;
             float meleeDamageRatioCap = AIHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_MeleeDamageRatioCap).FloatVal;
-            Mod.Log.Debug($" meleeDamageRatio: {meleeDamageRatio} = target: {targetMeleeDam} / attacker: {attackerMeleeDam} vs. cap: {meleeDamageRatioCap}");
+            Mod.Log.Debug?.Write($" meleeDamageRatio: {meleeDamageRatio} = target: {targetMeleeDam} / attacker: {attackerMeleeDam} vs. cap: {meleeDamageRatioCap}");
 
             return meleeDamageRatio > meleeDamageRatioCap;
         }

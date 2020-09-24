@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using IRBTModUtils;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -12,7 +13,7 @@ namespace CleverGirl.Helper {
         // Evaluate all possible attacks for the attacker and target based upon their current position. Returns the total damage the target will take,
         //   which will be compared against all other targets to determine the optimal attack to make
         public static float MakeAttackOrderForTarget(AbstractActor attackerAA, ICombatant target, bool isStationary, out BehaviorTreeResults order) {
-            Mod.Log.Debug($"Evaluating AttackOrder from ({CombatantUtils.Label(attackerAA)}) against ({CombatantUtils.Label(target)} at position: ({target.CurrentPosition})");
+            Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({CombatantUtils.Label(attackerAA)}) against ({CombatantUtils.Label(target)} at position: ({target.CurrentPosition})");
 
             // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
             if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target)) {
@@ -23,7 +24,7 @@ namespace CleverGirl.Helper {
             Mech attackerMech = attackerAA as Mech;
             float currentHeat = attackerMech == null ? 0f : (float)attackerMech.CurrentHeat;
             float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech); ;
-            Mod.Log.Debug($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
+            Mod.Log.Debug?.Write($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
 
             //float weaponToHitThreshold = attackerAA.BehaviorTree.weaponToHitThreshold;
 
@@ -43,10 +44,10 @@ namespace CleverGirl.Helper {
 
             // Evaluate ranged attacks 
             //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-            //    Mod.Log.Debug($"Checking evasive shots against target, needs {evasiveToHitFraction} or higher to be included.");
+            //    Mod.Log.Debug?.Write($"Checking evasive shots against target, needs {evasiveToHitFraction} or higher to be included.");
             //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.RangedWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
             //} else {
-            //    Mod.Log.Debug($"Checking non-evasive target.");
+            //    Mod.Log.Debug?.Write($"Checking non-evasive target.");
             //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
             //}
             weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
@@ -54,13 +55,44 @@ namespace CleverGirl.Helper {
             // Evaluate melee attacks
             string cannotEngageInMeleeMsg = "";
             if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg)) {
-                Mod.Log.Debug($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
+                Mod.Log.Debug?.Write($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
             } else {
+
+
+                // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
+                bool isPunchbot = false;
+                if (Mod.Config.CBTBEMelee && attackerMech.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))
+                {
+                    Mod.Log.Debug?.Write(" Unit has CBTBE physical weapon, marking as punchbot.");
+                    isPunchbot = true;
+                }
+                else
+                {
+                    int rawRangedDam = 0, rawMeleeDam = 0;
+                    foreach (Weapon weapon in attackerMech.Weapons)
+                    {
+                        if (weapon.WeaponCategoryValue.CanUseInMelee)
+                        {
+                            rawMeleeDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
+                        }
+                        else
+                        {
+                            rawRangedDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
+                        }
+                    }
+
+                    if (rawMeleeDam >= Mod.Config.Weights.PunchbotDamageMulti * rawRangedDam)
+                    {
+                        Mod.Log.Debug?.Write($" Unit isPunchbot due to rawMelee: {rawMeleeDam} >= rawRanged: {rawRangedDam} x {Mod.Config.Weights.PunchbotDamageMulti}");
+                        isPunchbot = true;
+                    }
+                }
+                
                 // Check Retaliation
                 // TODO: Retaliation should consider all possible attackers, not just the attacker
                 // TODO: Retaliation should consider how much damage you do with melee vs. non-melee - i.e. punchbots should probably prefer punching over weak weapons fire
                 // TODO: Should consider if heat would be reduced by melee attack
-                if (AEHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
+                if (isPunchbot || AEHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
 
                     // Generate base list
                     //List<List<CondensedWeapon>> meleeWeaponSets = null;
@@ -79,13 +111,13 @@ namespace CleverGirl.Helper {
 
                     weaponSetsByAttackType[1] = meleeWeaponSets;
                 } else {
-                    Mod.Log.Debug($" potential melee retaliation too high, skipping melee.");
+                    Mod.Log.Debug?.Write($" potential melee retaliation too high, skipping melee.");
                 }
             }
 
             // Evaluate DFA attacks
-            if (attackerMech == null || !AIUtil.IsDFAAcceptable(attackerMech, target)) {
-                Mod.Log.Debug("this unit cannot dfa");
+            if (attackerMech == null || !AIHelper.IsDFAAcceptable(attackerMech, target)) {
+                Mod.Log.Debug?.Write("this unit cannot dfa");
             } else {
 
                 // TODO: Check Retaliation
@@ -107,13 +139,13 @@ namespace CleverGirl.Helper {
             }
 
             List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
-            Mod.Log.Debug(string.Format("found {0} different attack solutions", list.Count));
+            Mod.Log.Debug?.Write(string.Format("found {0} different attack solutions", list.Count));
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
             for (int m = 0; m < list.Count; m++) {
                 AttackEvaluation attackEvaluation = list[m];
-                Mod.Log.Debug($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
+                Mod.Log.Debug?.Write($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
                     $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
                 switch (attackEvaluation.AttackType) {
                     case AIUtil.AttackType.Shooting:
@@ -130,7 +162,7 @@ namespace CleverGirl.Helper {
                         break;
                 }
             }
-            Mod.Log.Debug($"best shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
+            Mod.Log.Debug?.Write($"best shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
 
             float targetMaxArmorFractionFromHittableLocations = AttackEvaluator.MaxDamageLevel(attackerAA, target);
             float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
@@ -145,8 +177,8 @@ namespace CleverGirl.Helper {
             // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++) {
                 AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
-                Mod.Log.Debug("------");
-                Mod.Log.Debug($"Evaluating attack solution #{n} vs target: {CombatantUtils.Label(targetActor)}");
+                Mod.Log.Debug?.Write("------");
+                Mod.Log.Debug?.Write($"Evaluating attack solution #{n} vs target: {CombatantUtils.Label(targetActor)}");
                 
                 // TODO: Do we really need this spam?
                 StringBuilder weaponListSB = new StringBuilder();
@@ -157,46 +189,46 @@ namespace CleverGirl.Helper {
                     weaponListSB.Append("', ");
                 }
                 weaponListSB.Append(")");
-                Mod.Log.Debug(weaponListSB.ToString());
+                Mod.Log.Debug?.Write(weaponListSB.ToString());
 
                 if (attackEvaluation2.WeaponList.Count == 0) {
-                    Mod.Log.Debug("SOLUTION REJECTED - no weapons!");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - no weapons!");
                 }
 
                 // TODO: Does heatGenerated account for jump heat?
                 // TODO: Does not rollup heat!
                 bool willCauseOverheat = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
-                Mod.Log.Debug($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
+                Mod.Log.Debug?.Write($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
                 if (willCauseOverheat && attackerMech.OverheatWillCauseDeath()) {
-                    Mod.Log.Debug("SOLUTION REJECTED - overheat would cause own death");
+                    Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
                     continue;
                 }
                 // TODO: Check for acceptable damage from overheat - as per below
                 //bool flag6 = num4 >= existingTargetDamageForOverheat;
-                //Mod.Log.Debug("but enough damage for overheat attack? " + flag6);
+                //Mod.Log.Debug?.Write("but enough damage for overheat attack? " + flag6);
                 //bool flag7 = attackEvaluation2.lowestHitChance >= weaponToHitThreshold;
-                //Mod.Log.Debug("but enough accuracy for overheat attack? " + flag7);
+                //Mod.Log.Debug?.Write("but enough accuracy for overheat attack? " + flag7);
                 //if (willCauseOverheat && (!flag6 || !flag7)) {
-                //    Mod.Log.Debug("SOLUTION REJECTED - not enough damage or accuracy on an attack that will overheat");
+                //    Mod.Log.Debug?.Write("SOLUTION REJECTED - not enough damage or accuracy on an attack that will overheat");
                 //    continue;
                 //}
 
                 if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee) {
                     if (!attackerAA.CanEngageTarget(target)) {
-                        Mod.Log.Debug("SOLUTION REJECTED - can't engage target!");
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - can't engage target!");
                         continue;
                     }
                     if (meleeDestsForTarget.Count == 0) {
-                        Mod.Log.Debug("SOLUTION REJECTED - can't build path to target!");
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - can't build path to target!");
                         continue;
                     }
                     if (targetActor == null) {
-                        Mod.Log.Debug("SOLUTION REJECTED - target is a building, we can't melee buildings!");
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - target is a building, we can't melee buildings!");
                         continue;
                     }
                     // TODO: This seems wrong... why can't you melee if the target is already engaged with you?
                     if (isStationary) {
-                        Mod.Log.Debug("SOLUTION REJECTED - attacker was stationary, can't melee");
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
                         continue;
                     } 
                 }
@@ -205,22 +237,22 @@ namespace CleverGirl.Helper {
                 if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove) {
 
                     if (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition)) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - Cannot DFA target from pos: {attackerAA.CurrentPosition}!");
+                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - Cannot DFA target from pos: {attackerAA.CurrentPosition}!");
                         continue;
                     }
 
                     if (dfadestsForTarget.Count == 0) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - no valid DFA destination pathNodes!");
+                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - no valid DFA destination pathNodes!");
                         continue;
                     }
 
                     if (targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - armor fraction: {targetMaxArmorFractionFromHittableLocations} < behVar(Float_ExistingTargetDamageForDFAAttack): {existingTargetDamageForDFA}!");
+                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - armor fraction: {targetMaxArmorFractionFromHittableLocations} < behVar(Float_ExistingTargetDamageForDFAAttack): {existingTargetDamageForDFA}!");
                         continue;
                     }
 
                     if (attackerLegDamage > maxAllowedLegDamageForDFA) {
-                        Mod.Log.Debug($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
+                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
                         continue;
                     }
                 }
@@ -281,14 +313,14 @@ namespace CleverGirl.Helper {
                     behaviorTreeResults.orderInfo = attackOrderInfo;
                     behaviorTreeResults.debugOrderString = $" using attack type: {attackEvaluation2.AttackType} against: {target.DisplayName}";
 
-                    Mod.Log.Debug("attack order: " + behaviorTreeResults.debugOrderString);
+                    Mod.Log.Debug?.Write("attack order: " + behaviorTreeResults.debugOrderString);
                     order = behaviorTreeResults;
                     return attackEvaluation2.ExpectedDamage;
                 }
-                Mod.Log.Debug("Rejecting attack for not having any expected damage");
+                Mod.Log.Debug?.Write("Rejecting attack for not having any expected damage");
             }
 
-            Mod.Log.Debug("There are no targets I can shoot at without overheating.");
+            Mod.Log.Debug?.Write("There are no targets I can shoot at without overheating.");
             order = null;
             return 0f;
         }
