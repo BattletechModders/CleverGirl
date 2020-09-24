@@ -23,7 +23,7 @@ namespace CleverGirl {
             Mod.Log.Info?.Write("");
             Mod.Log.Info?.Write("--- Decision Weights ---");
             Mod.Log.Info?.Write($" FriendlyDamageMulti: {this.Weights.FriendlyDamageMulti}");
-            Mod.Log.Info?.Write($" PunchbotDamageMulti: {this.Weights.FriendlyDamageMulti}");
+            Mod.Log.Info?.Write($" PunchbotDamageMulti: {this.Weights.PunchbotDamageMulti}");
             Mod.Log.Info?.Write("=== MOD CONFIG END ===");
         }
 

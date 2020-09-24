@@ -165,14 +165,16 @@ namespace CleverGirl.Helper {
             Mod.Log.Debug?.Write($"best shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
 
             float targetMaxArmorFractionFromHittableLocations = AttackEvaluator.MaxDamageLevel(attackerAA, target);
-            float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
-            //float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
             float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
+
+            //float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
+            float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
             float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
+            Mod.Log.Debug?.Write($"  BehVars => ExistingTargetDamageForDFAAttack: {existingTargetDamageForDFA}  OwnMaxLegDamageForDFAAttack: {maxAllowedLegDamageForDFA}");
 
             AbstractActor targetActor = target as AbstractActor;
-            List<PathNode> dfadestsForTarget = attackerMech.JumpPathing.GetDFADestsForTarget(targetActor);
-            List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
+            List<PathNode> dfadestsForTarget = attackerMech != null ? attackerMech.JumpPathing.GetDFADestsForTarget(targetActor) : new List<PathNode>();
+            List<PathNode> meleeDestsForTarget = attackerMech != null ? attackerMech.Pathing.GetMeleeDestsForTarget(targetActor) : new List<PathNode>();
 
             // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++) {
