@@ -61,7 +61,7 @@ namespace CleverGirl.Helper {
 
                 // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
                 bool isPunchbot = false;
-                if (Mod.Config.CBTBEMelee && attackerMech.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))
+                if (Mod.Config.UseCBTBEMelee && attackerMech.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))
                 {
                     Mod.Log.Debug?.Write(" Unit has CBTBE physical weapon, marking as punchbot.");
                     isPunchbot = true;

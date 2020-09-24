@@ -7,7 +7,7 @@ namespace CleverGirl {
         public bool Trace = false;
         public bool Profile = false;
 
-        public bool CBTBEMelee = false;
+        public bool UseCBTBEMelee = false;
 
         public class DecisionWeights {
             public float FriendlyDamageMulti = 2.0f;
@@ -19,7 +19,7 @@ namespace CleverGirl {
         public void LogConfig() {
             Mod.Log.Info?.Write("=== MOD CONFIG BEGIN ===");
             Mod.Log.Info?.Write($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
-            Mod.Log.Info?.Write($" CBTBEMelee: {this.CBTBEMelee}");
+            Mod.Log.Info?.Write($" CBTBEMelee: {this.UseCBTBEMelee}");
             Mod.Log.Info?.Write("");
             Mod.Log.Info?.Write("--- Decision Weights ---");
             Mod.Log.Info?.Write($" FriendlyDamageMulti: {this.Weights.FriendlyDamageMulti}");
