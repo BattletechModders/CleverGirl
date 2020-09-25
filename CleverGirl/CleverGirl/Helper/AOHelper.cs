@@ -57,8 +57,6 @@ namespace CleverGirl.Helper {
             if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg)) {
                 Mod.Log.Debug?.Write($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
             } else {
-
-
                 // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
                 bool isPunchbot = false;
                 if (Mod.Config.UseCBTBEMelee && attackerMech.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))

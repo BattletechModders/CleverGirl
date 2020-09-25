@@ -17,7 +17,7 @@ namespace CleverGirl.Patches {
 
         // Duplication of HBS code, avoiding prefix=true for now.
         public static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit) {
-            Mod.Log.Info?.Write("CJMCN:T - entered");
+            Mod.Log.Trace?.Write("CJMCN:T - entered");
 
             Mech mech = ___unit as Mech;
             if (mech != null && mech.WorkingJumpjets > 0) {

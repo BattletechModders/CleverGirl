@@ -102,7 +102,7 @@ namespace CleverGirl.Patches {
         public static bool Prefix(AbstractActor unit, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order, ref float __result) {
 
             try {
-                Mod.Log.Info?.Write("AE:MAOFT entered.");
+                Mod.Log.Trace?.Write("AE:MAOFT entered.");
 
                 //ModState.RangeToTargetsAlliesCache.Clear();
                 __result = AOHelper.MakeAttackOrderForTarget(unit, target, isStationary, out BehaviorTreeResults innerBTR);
