@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using IRBTModUtils;
+using IRBTModUtils.Extension;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -13,7 +14,7 @@ namespace CleverGirl.Helper {
         // Evaluate all possible attacks for the attacker and target based upon their current position. Returns the total damage the target will take,
         //   which will be compared against all other targets to determine the optimal attack to make
         public static float MakeAttackOrderForTarget(AbstractActor attackerAA, ICombatant target, bool isStationary, out BehaviorTreeResults order) {
-            Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({CombatantUtils.Label(attackerAA)}) against ({CombatantUtils.Label(target)} at position: ({target.CurrentPosition})");
+            Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({attackerAA.DistinctId()}) against ({target.DistinctId()} at position: ({target.CurrentPosition})");
 
             // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
             if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target)) {
@@ -178,7 +179,7 @@ namespace CleverGirl.Helper {
             for (int n = 0; n < list.Count; n++) {
                 AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
                 Mod.Log.Debug?.Write("------");
-                Mod.Log.Debug?.Write($"Evaluating attack solution #{n} vs target: {CombatantUtils.Label(targetActor)}");
+                Mod.Log.Debug?.Write($"Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
                 
                 // TODO: Do we really need this spam?
                 StringBuilder weaponListSB = new StringBuilder();

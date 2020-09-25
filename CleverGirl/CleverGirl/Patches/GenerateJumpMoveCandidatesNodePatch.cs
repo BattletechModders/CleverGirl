@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using Harmony;
+using IRBTModUtils.Extension;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -25,7 +26,7 @@ namespace CleverGirl.Patches {
                 
                 float acceptableHeat = AIUtil.GetAcceptableHeatLevelForMech(mech);
                 float currentHeat = (float)mech.CurrentHeat;
-                Mod.Log.Info?.Write($"CJMCN:T - === actor:{CombatantUtils.Label(mech)} has currentHeat:{currentHeat} and acceptableHeat:{acceptableHeat}");
+                Mod.Log.Info?.Write($"CJMCN:T - === actor:{mech.DistinctId()} has currentHeat:{currentHeat} and acceptableHeat:{acceptableHeat}");
 
                 List<PathNode> sampledPathNodes = ___unit.JumpPathing.GetSampledPathNodes();
                 Mod.Log.Info?.Write($"CJMCN:T - calculating {sampledPathNodes.Count} nodes");

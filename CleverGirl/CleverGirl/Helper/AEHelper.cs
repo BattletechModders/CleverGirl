@@ -1,6 +1,7 @@
 ﻿using BattleTech;
 using CleverGirl.Analytics;
 using CleverGirlAIDamagePrediction;
+using IRBTModUtils.Extension;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
@@ -81,20 +82,20 @@ namespace CleverGirl {
             ModState.CurrentActorEnemies.Clear();
 
             // Prime the caches with information about all targets
-            Mod.Log.Debug?.Write($"Evaluating all actors for hostility to {CombatantUtils.Label(unit)}");
+            Mod.Log.Debug?.Write($"Evaluating all actors for hostility to {unit.DistinctId()}");
             foreach (ICombatant combatant in unit.Combat.GetAllImporantCombatants()) {
                 if (combatant.GUID == unit.GUID) { continue; }
 
                 // Will only include alive actors and buildings that are 'tab' targets
                 if (unit.Combat.HostilityMatrix.IsFriendly(unit.team, combatant.team)) {
                     ModState.CurrentActorAllies[combatant.GUID] = combatant;
-                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is an ally.");
+                    Mod.Log.Debug?.Write($"  -- actor: {combatant.DistinctId()} is an ally.");
                 } else if (unit.Combat.HostilityMatrix.IsEnemy(unit.team, combatant.team)) {
                     ModState.CurrentActorEnemies[combatant.GUID] = combatant;
-                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is an enemy.");
+                    Mod.Log.Debug?.Write($"  -- actor: {combatant.DistinctId()} is an enemy.");
                 } else {
                     ModState.CurrentActorNeutrals[combatant.GUID] = combatant;
-                    Mod.Log.Debug?.Write($"  -- actor: {CombatantUtils.Label(combatant)} is neutral.");
+                    Mod.Log.Debug?.Write($"  -- actor: {combatant.DistinctId()} is neutral.");
                 }
 
                 // Add the combatant to the analytics

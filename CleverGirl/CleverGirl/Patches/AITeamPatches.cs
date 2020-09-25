@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using Harmony;
+using IRBTModUtils.Extension;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,7 +24,7 @@ namespace CleverGirl.Patches {
         public static void Postfix(AITeam __instance) {
             Mod.Log.Trace?.Write("AIU:CDT:Post");
             foreach (KeyValuePair<Lance, AbstractActor> kvp in __instance.DesignatedTargetForLance) {
-                Mod.Log.Info?.Write($"Lance: {kvp.Key.DisplayName} has designedTarget: {CombatantUtils.Label(kvp.Value)}");
+                Mod.Log.Info?.Write($"Lance: {kvp.Key.DisplayName} has designedTarget: {kvp.Value.DistinctId()}");
             }
         }
     }

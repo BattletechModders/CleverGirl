@@ -1,6 +1,7 @@
 ﻿using BattleTech;
 using CleverGirl.Helper;
 using Harmony;
+using IRBTModUtils.Extension;
 using System;
 using us.frostraptor.modUtils;
 using static AttackEvaluator;
@@ -29,7 +30,7 @@ namespace CleverGirl.Patches {
             // Initialize decision data caches
             AEHelper.InitializeAttackOrderDecisionData(unit);
             
-            Mod.Log.Debug?.Write($" == Evaluating attack from unit: {CombatantUtils.Label(unit)} at pos: {unit.CurrentPosition} against {unit.BehaviorTree.enemyUnits.Count} enemies.");
+            Mod.Log.Debug?.Write($" == Evaluating attack from unit: {unit.DistinctId()} at pos: {unit.CurrentPosition} against {unit.BehaviorTree.enemyUnits.Count} enemies.");
             BehaviorTreeResults behaviorTreeResults = null;
             AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
 
@@ -38,7 +39,7 @@ namespace CleverGirl.Patches {
             if (designatedTarget != null) {
                 desTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out behaviorTreeResults);
                 desTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, designatedTarget, designatedTarget.CurrentPosition, designatedTarget.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
-                Mod.Log.Debug?.Write($"  DesignatedTarget: {CombatantUtils.Label(designatedTarget)} will suffer: {desTargDamage} damage and lose: {desTargFirepowerReduction} firepower from attack.");
+                Mod.Log.Debug?.Write($"  DesignatedTarget: {designatedTarget.DistinctId()} will suffer: {desTargDamage} damage and lose: {desTargFirepowerReduction} firepower from attack.");
             } else {
                 Mod.Log.Debug?.Write("  No designated target identified.");
             }
@@ -55,7 +56,7 @@ namespace CleverGirl.Patches {
                 ICombatant combatant = unit.BehaviorTree.enemyUnits[j];
                 if (combatant == designatedTarget || combatant.IsDead) { continue; }
 
-                Mod.Log.Debug?.Write($"  Checking opportunity fire against target: {CombatantUtils.Label(combatant)}");
+                Mod.Log.Debug?.Write($"  Checking opportunity fire against target: {combatant.DistinctId()}");
 
                 AbstractActor opportunityFireTarget = combatant as AbstractActor;
                 BehaviorTreeResults oppTargAttackOrder;
