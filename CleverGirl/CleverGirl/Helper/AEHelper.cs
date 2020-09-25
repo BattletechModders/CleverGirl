@@ -284,6 +284,51 @@ namespace CleverGirl
             return meleeDamageRatio > meleeDamageRatioCap;
         }
 
+        // Make multiple sets of ranged weapons, to allow for selection of the optimal set based on range
+        public static List<List<CondensedWeapon>> MakeRangedWeaponSets(List<CondensedWeapon> potentialWeapons,
+            ICombatant target, Vector3 attackPosition)
+        {
+            // First, filter weapons that won't fire
+            List<CondensedWeapon> weaponsToFire = new List<CondensedWeapon>();
+            float distance = (attackPosition - target.CurrentPosition).magnitude;
+            foreach (CondensedWeapon cWeap in potentialWeapons)
+            {
+                Weapon wep = cWeap.First;
+                if (distance > wep.MaxRange)
+                {
+                    Mod.Log.Debug?.Write($" Skipping {wep.UIName} in ranged set as distance: {distance} > maxRange: {wep.MaxRange}");
+                    continue;
+                }
+                if (distance < wep.MinRange)
+                {
+                    Mod.Log.Debug?.Write($" Skipping {wep.UIName} in ranged set as distance: {distance} < minRange: {wep.MinRange}");
+                    continue;
+                }
+
+                // Check one-shot weapons for accuracy
+                if (wep.weaponDef.StartingAmmoCapacity == wep.weaponDef.ShotsWhenFired)
+                {
+                    float toHitFromPosition = cWeap.First.GetToHitFromPosition(target, 1, attackPosition, target.CurrentPosition, true, true, false);
+                    if (toHitFromPosition < Mod.Config.Weights.OneShotMinimumToHit)
+                    {
+                        Mod.Log.Debug?.Write($" Skipping {wep.UIName} in ranged set as toHitFromPosition: {toHitFromPosition} is below OneShotMinimumToHit: {Mod.Config.Weights.OneShotMinimumToHit}");
+                        continue;
+                    }
+                }
+
+                if (!wep.CanFire)
+                {
+                    Mod.Log.Debug?.Write($" Skipping {wep.UIName} in ranged set it cannot fire (out of ammo, damaged, etc)");
+                    continue;
+                }
+
+                weaponsToFire.Add(cWeap);
+            }
+
+            return MakeWeaponSets(weaponsToFire);
+
+        }
+
         // === CLONE METHODS BELOW ==
 
         // CLONE OF HBS CODE - LIKELY BRITTLE!

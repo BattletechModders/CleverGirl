@@ -51,7 +51,8 @@ namespace CleverGirl.Helper {
             //    Mod.Log.Debug?.Write($"Checking non-evasive target.");
             //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
             //}
-            weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
+
+            weaponSetsByAttackType[0] = AEHelper.MakeRangedWeaponSets(candidateWeapons.RangedWeapons, target, attackerAA.CurrentPosition);
 
             // Evaluate melee attacks
             string cannotEngageInMeleeMsg = "";

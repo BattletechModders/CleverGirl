@@ -13,6 +13,8 @@ namespace CleverGirl {
             public float FriendlyDamageMulti = 2.0f;
 
             public float PunchbotDamageMulti = 2.0f;
+
+            public float OneShotMinimumToHit = 0.4f;
         }
         public DecisionWeights Weights = new DecisionWeights();
 
