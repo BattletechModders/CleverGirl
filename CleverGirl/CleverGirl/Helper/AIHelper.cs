@@ -180,9 +180,10 @@ namespace CleverGirl {
                     float evasiveMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
                     if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
                 }
+                Mod.Log.Debug?.Write($"Melee status weight calculated as: {meleeStatusWeights}");
 
                 DetermineMaxDamageAmmoModePair(cWeapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair.ammoId}_{maxDamagePair.modeId} EV: {maxDamage}");
+                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair?.ammoId}_{maxDamagePair?.modeId} EV: {maxDamage}");
                 cWeapon.ammoAndMode = maxDamagePair;
 
                 //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
@@ -210,18 +211,50 @@ namespace CleverGirl {
         private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
             ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
         {
+            Mod.Log.Debug?.Write($"Gathering damage predictions for weapon: {cWeapon.First.UIName} from attacker: {attacker.DistinctId()} to target: {target.DistinctId()}");
+            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
+            Mod.Log.Debug?.Write($" -- Done!");
+
             maxDamage = 0f;
             maxDamagePair = null;
-            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
+            if (damagePredictions == null || damagePredictions.Count == 0)
+            {
+                if (cWeapon.First.getCurrentAmmoMode() != null)
+                {
+                    // WORK AROUND CAC BUG HERE
+                    AmmoModePair currentAmmo = cWeapon.First.getCurrentAmmoMode();
+                    cWeapon.First.ApplyAmmoMode(currentAmmo);
+                    damagePredictions.Add(currentAmmo, cWeapon.First.CalcPredictedEffect(attackerPos, target));
+                    cWeapon.First.ResetTempAmmo();
+                }
+                else
+                {
+                    Mod.Log.Warn?.Write($"Damage predictions were null or empty! Returning a null MaxDamagePair!");
+                    return;
+                }
+            }
+
             foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
             {
                 AmmoModePair ammoModePair = kvp.Key;
                 WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
-                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair.ammoId} with modeId: {ammoModePair.modeId}");
+                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair?.ammoId} with modeId: {ammoModePair?.modeId}");
+
+                if (weaponFirePredictedEffect == null || ammoModePair == null)
+                {
+                    Mod.Log.Warn?.Write($" - Got a null for weaponFirePredictedEffect: {(weaponFirePredictedEffect == null)}" +
+                        $" or ammoModePair: {(ammoModePair == null)}");
+                }
 
                 float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
                 foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
                 {
+                    if (dpr == null)
+                    {
+                        Mod.Log.Debug?.Write($"  DPR was null, skipping!");
+                        continue;
+                    }
+
                     float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
                     // Chance to knockdown... but evasion dump is more valuable?
                     if (attackParams.TargetIsUnsteady)
@@ -276,6 +309,7 @@ namespace CleverGirl {
                     else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
                     else { enemyDamage += dprEV; }
                 }
+
                 float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
                 Mod.Log.Debug?.Write($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
                 if (damageEV >= maxDamage)
@@ -283,6 +317,9 @@ namespace CleverGirl {
                     maxDamage = damageEV;
                     maxDamagePair = ammoModePair;
                 }
+
+                Mod.Log.Debug?.Write($" - DONE Evaluating ammoId: {ammoModePair?.ammoId} with modeId: {ammoModePair?.modeId}");
+
             }
         }
 

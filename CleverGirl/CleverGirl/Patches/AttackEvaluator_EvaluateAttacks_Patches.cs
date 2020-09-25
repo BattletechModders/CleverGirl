@@ -34,6 +34,7 @@ namespace CleverGirl.Patches {
             BehaviorTreeResults behaviorTreeResults = null;
             AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
 
+            Mod.Log.Debug?.Write(" === BEGIN DESIGNATED TARGET FIRE CHECKS ===");
             float desTargDamage = 0f;
             float desTargFirepowerReduction = 0f;
             if (designatedTarget != null) {
@@ -43,7 +44,9 @@ namespace CleverGirl.Patches {
             } else {
                 Mod.Log.Debug?.Write("  No designated target identified.");
             }
+            Mod.Log.Debug?.Write(" === END DESIGNATED TARGET FIRE CHECKS ===");
 
+            Mod.Log.Debug?.Write(" === BEGIN OPPORTUNITY FIRE CHECKS ===");
             float behavior1 = AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
             float opportunityFireThreshold = 1f + (behavior1 / 100f);
 
@@ -81,6 +84,7 @@ namespace CleverGirl.Patches {
                     return false;
                 }
             }
+            Mod.Log.Debug?.Write(" === END OPPORTUNITY FIRE CHECKS ===");
 
             if (behaviorTreeResults != null && behaviorTreeResults.orderInfo != null) {
                 Mod.Log.Debug?.Write("Successfuly calculated attack order");
