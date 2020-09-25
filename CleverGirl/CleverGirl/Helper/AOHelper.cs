@@ -55,8 +55,8 @@ namespace CleverGirl.Helper {
 
             // Evaluate melee attacks
             string cannotEngageInMeleeMsg = "";
-            if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg)) {
-                Mod.Log.Debug?.Write($" attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
+            if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg) || attackerMech.HasMovedThisRound) {
+                Mod.Log.Debug?.Write($" - Attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
             } else {
                 // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
                 bool isPunchbot = false;
@@ -116,7 +116,7 @@ namespace CleverGirl.Helper {
 
             // Evaluate DFA attacks
             if (attackerMech == null || !AIHelper.IsDFAAcceptable(attackerMech, target)) {
-                Mod.Log.Debug?.Write("this unit cannot dfa");
+                Mod.Log.Debug?.Write(" - Attacker cannot DFA, or DFA is not acceptable.");
             } else {
 
                 // TODO: Check Retaliation
@@ -178,8 +178,7 @@ namespace CleverGirl.Helper {
             // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++) {
                 AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
-                Mod.Log.Debug?.Write("------");
-                Mod.Log.Debug?.Write($"Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
+                Mod.Log.Debug?.Write($" ==== Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
                 
                 // TODO: Do we really need this spam?
                 StringBuilder weaponListSB = new StringBuilder();
@@ -204,6 +203,7 @@ namespace CleverGirl.Helper {
                     Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
                     continue;
                 }
+
                 // TODO: Check for acceptable damage from overheat - as per below
                 //bool flag6 = num4 >= existingTargetDamageForOverheat;
                 //Mod.Log.Debug?.Write("but enough damage for overheat attack? " + flag6);
@@ -232,6 +232,12 @@ namespace CleverGirl.Helper {
                         Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
                         continue;
                     } 
+
+                    if (attackerMech.HasMovedThisRound)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
+                        continue;
+                    }
                 }
 
                 // Check for DFA auto-failures
@@ -254,6 +260,12 @@ namespace CleverGirl.Helper {
 
                     if (attackerLegDamage > maxAllowedLegDamageForDFA) {
                         Mod.Log.Debug?.Write($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
+                        continue;
+                    }
+
+                    if (attackerMech.HasMovedThisRound)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
                         continue;
                     }
                 }
@@ -318,10 +330,10 @@ namespace CleverGirl.Helper {
                     order = behaviorTreeResults;
                     return attackEvaluation2.ExpectedDamage;
                 }
-                Mod.Log.Debug?.Write("Rejecting attack for not having any expected damage");
+                Mod.Log.Debug?.Write("Rejecting attack with no expected damage");
             }
 
-            Mod.Log.Debug?.Write("There are no targets I can shoot at without overheating.");
+            Mod.Log.Debug?.Write("Could not build an AttackOrder with damage, returning a null order. Unit will likely brace.");
             order = null;
             return 0f;
         }

@@ -46,22 +46,26 @@ namespace CleverGirl {
                 $"target: ({target.CurrentPosition})");
             foreach (KeyValuePair<string, CondensedWeapon> kvp in condensed) {
                 CondensedWeapon cWeapon = kvp.Value;
+                Mod.Log.Debug?.Write($" -- weapon => {cWeapon.First.defId}");
+
+                if (cWeapon.First.WeaponCategoryValue.CanUseInMelee)
+                {
+                    Mod.Log.Debug?.Write($" ---- can be used in melee, adding to melee and DFA sets.");
+                    MeleeWeapons.Add(cWeapon);
+                    DFAWeapons.Add(cWeapon);
+                }
+
                 // Evaluate being able to hit the target
                 bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
                 bool withinRange = distance <= cWeapon.First.MaxRange;
                 if (willFireAtTarget && withinRange) {
-                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) has LOF and is within range, adding ");
+                    Mod.Log.Debug?.Write($" ---- has LOF and is within range, adding ");
                     RangedWeapons.Add(cWeapon);
                 } else {
-                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
-                        $"or has no LOF, skipping.");
+                    Mod.Log.Debug?.Write($" ---- is out of range (MaxRange: {cWeapon.First.MaxRange} vs {distance}) " +
+                        $"or has no LOF (willFireAtTarget = {willFireAtTarget}), skipping.");
                 }
 
-                if (cWeapon.First.WeaponCategoryValue.CanUseInMelee) {
-                    Mod.Log.Debug?.Write($" ({cWeapon.First.defId}) can be used in melee, adding to melee and DFA sets.");
-                    MeleeWeapons.Add(cWeapon);
-                    DFAWeapons.Add(cWeapon);
-                }
             }
         }
     }
