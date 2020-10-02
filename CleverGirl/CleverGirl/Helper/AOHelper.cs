@@ -1,10 +1,12 @@
 ﻿using BattleTech;
-using IRBTModUtils;
+using CBTBehaviorsEnhanced;
+using CBTBehaviorsEnhanced.Helper;
+using CleverGirlAIDamagePrediction;
 using IRBTModUtils.Extension;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using UnityEngine;
-using us.frostraptor.modUtils;
 using static AttackEvaluator;
 
 namespace CleverGirl.Helper {
@@ -13,11 +15,14 @@ namespace CleverGirl.Helper {
 
         // Evaluate all possible attacks for the attacker and target based upon their current position. Returns the total damage the target will take,
         //   which will be compared against all other targets to determine the optimal attack to make
-        public static float MakeAttackOrderForTarget(AbstractActor attackerAA, ICombatant target, bool isStationary, out BehaviorTreeResults order) {
+        public static float MakeAttackOrderForTarget(AbstractActor attackerAA, ICombatant target, 
+            bool isStationary, out BehaviorTreeResults order)
+        {
             Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({attackerAA.DistinctId()}) against ({target.DistinctId()} at position: ({target.CurrentPosition})");
 
             // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
-            if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target)) {
+            if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target))
+            {
                 order = BehaviorTreeResults.BehaviorTreeResultsFromBoolean(false);
                 return 0f;
             }
@@ -27,7 +32,7 @@ namespace CleverGirl.Helper {
             float acceptableHeat = attackerMech == null ? float.MaxValue : AIUtil.GetAcceptableHeatLevelForMech(attackerMech); ;
             Mod.Log.Debug?.Write($" heat: current: {currentHeat} acceptable: {acceptableHeat}");
 
-            //float weaponToHitThreshold = attackerAA.BehaviorTree.weaponToHitThreshold;
+            // float weaponToHitThreshold = attackerAA.BehaviorTree.weaponToHitThreshold;
 
             // Filter weapons that cannot contribute to the battle
             CandidateWeapons candidateWeapons = new CandidateWeapons(attackerAA, target);
@@ -51,91 +56,27 @@ namespace CleverGirl.Helper {
             //    Mod.Log.Debug?.Write($"Checking non-evasive target.");
             //    weaponSetsByAttackType[0] = AEHelper.MakeWeaponSets(candidateWeapons.RangedWeapons);
             //}
+            AbstractActor targetActor = target as AbstractActor;
 
             weaponSetsByAttackType[0] = AEHelper.MakeRangedWeaponSets(candidateWeapons.RangedWeapons, target, attackerAA.CurrentPosition);
 
-            // Evaluate melee attacks
-            string cannotEngageInMeleeMsg = "";
-            if (attackerMech == null || !attackerMech.CanEngageTarget(target, out cannotEngageInMeleeMsg) || attackerMech.HasMovedThisRound) {
-                Mod.Log.Debug?.Write($" - Attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
-            } else {
-                // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
-                bool isPunchbot = false;
-                if (Mod.Config.UseCBTBEMelee && attackerMech.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))
-                {
-                    Mod.Log.Debug?.Write(" Unit has CBTBE physical weapon, marking as punchbot.");
-                    isPunchbot = true;
-                }
-                else
-                {
-                    int rawRangedDam = 0, rawMeleeDam = 0;
-                    foreach (Weapon weapon in attackerMech.Weapons)
-                    {
-                        if (weapon.WeaponCategoryValue.CanUseInMelee)
-                        {
-                            rawMeleeDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
-                        }
-                        else
-                        {
-                            rawRangedDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
-                        }
-                    }
-
-                    if (rawMeleeDam >= Mod.Config.Weights.PunchbotDamageMulti * rawRangedDam)
-                    {
-                        Mod.Log.Debug?.Write($" Unit isPunchbot due to rawMelee: {rawMeleeDam} >= rawRanged: {rawRangedDam} x {Mod.Config.Weights.PunchbotDamageMulti}");
-                        isPunchbot = true;
-                    }
-                }
-                
-                // Check Retaliation
-                // TODO: Retaliation should consider all possible attackers, not just the attacker
-                // TODO: Retaliation should consider how much damage you do with melee vs. non-melee - i.e. punchbots should probably prefer punching over weak weapons fire
-                // TODO: Should consider if heat would be reduced by melee attack
-                if (isPunchbot || AEHelper.MeleeDamageOutweighsRisk(attackerMech, target)) {
-
-                    // Generate base list
-                    //List<List<CondensedWeapon>> meleeWeaponSets = null;
-                    //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                    //    meleeWeaponSets = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.MeleeWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                    //} else {
-                    //    meleeWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.MeleeWeapons);
-                    //}
-                    List<List<CondensedWeapon>> meleeWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.MeleeWeapons);
-
-                    // Add melee weapons to each set
-                    CondensedWeapon cMeleeWeapon = new CondensedWeapon(attackerMech.MeleeWeapon);
-                    for (int i = 0; i < meleeWeaponSets.Count; i++) {
-                        meleeWeaponSets[i].Add(cMeleeWeapon);
-                    }
-
-                    weaponSetsByAttackType[1] = meleeWeaponSets;
-                } else {
-                    Mod.Log.Debug?.Write($" potential melee retaliation too high, skipping melee.");
-                }
+            Vector3 bestMeleePosition = Vector3.zero;
+            if (attackerMech != null && targetActor != null)
+            {
+                List<PathNode> meleeDestsForTarget = attackerMech.Pathing.GetMeleeDestsForTarget(targetActor);
+                bestMeleePosition = meleeDestsForTarget.Count > 0 ?
+                    attackerMech.FindBestPositionToMeleeFrom(targetActor, meleeDestsForTarget) : Vector3.zero;
+                weaponSetsByAttackType[1] = MakeMeleeWeaponSets(attackerMech, targetActor, bestMeleePosition, candidateWeapons); 
             }
 
-            // Evaluate DFA attacks
-            if (attackerMech == null || !AIHelper.IsDFAAcceptable(attackerMech, target)) {
-                Mod.Log.Debug?.Write(" - Attacker cannot DFA, or DFA is not acceptable.");
-            } else {
-
-                // TODO: Check Retaliation
-                //List<List<CondensedWeapon>> dfaWeaponSets = null;
-                //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
-                //    dfaWeaponSets = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.DFAWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
-                //} else {
-                //    dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
-                //}
-                List<List<CondensedWeapon>> dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
-
-                // Add DFA weapons to each set
-                CondensedWeapon cDFAWeapon = new CondensedWeapon(attackerMech.DFAWeapon);
-                for (int i = 0; i < dfaWeaponSets.Count; i++) {
-                    dfaWeaponSets[i].Add(cDFAWeapon);
-                }
-
-                weaponSetsByAttackType[2] = dfaWeaponSets;
+            Vector3 bestDFAPosition = Vector3.zero;
+            if (attackerMech != null && targetActor != null)
+            {
+                List<PathNode> dfaDestsForTarget = attackerMech != null && targetActor != null ?
+                    attackerMech.JumpPathing.GetDFADestsForTarget(targetActor) : new List<PathNode>();
+                bestDFAPosition = dfaDestsForTarget.Count > 0 ?
+                    attackerMech.FindBestPositionToMeleeFrom(targetActor, dfaDestsForTarget) : Vector3.zero;
+                weaponSetsByAttackType[2] = MakeDFAWeaponSets(attackerMech, targetActor, bestDFAPosition, candidateWeapons);
             }
 
             List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
@@ -143,11 +84,13 @@ namespace CleverGirl.Helper {
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
-            for (int m = 0; m < list.Count; m++) {
+            for (int m = 0; m < list.Count; m++)
+            {
                 AttackEvaluation attackEvaluation = list[m];
                 Mod.Log.Debug?.Write($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
                     $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
-                switch (attackEvaluation.AttackType) {
+                switch (attackEvaluation.AttackType)
+                {
                     case AIUtil.AttackType.Shooting:
                         bestRangedEDam = Mathf.Max(bestRangedEDam, attackEvaluation.ExpectedDamage);
                         break;
@@ -172,19 +115,17 @@ namespace CleverGirl.Helper {
             float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             Mod.Log.Debug?.Write($"  BehVars => ExistingTargetDamageForDFAAttack: {existingTargetDamageForDFA}  OwnMaxLegDamageForDFAAttack: {maxAllowedLegDamageForDFA}");
 
-            AbstractActor targetActor = target as AbstractActor;
-            List<PathNode> dfadestsForTarget = attackerMech != null ? attackerMech.JumpPathing.GetDFADestsForTarget(targetActor) : new List<PathNode>();
-            List<PathNode> meleeDestsForTarget = attackerMech != null ? attackerMech.Pathing.GetMeleeDestsForTarget(targetActor) : new List<PathNode>();
-
             // LOGIC: Now, evaluate every set of attacks in the list
-            for (int n = 0; n < list.Count; n++) {
+            for (int n = 0; n < list.Count; n++)
+            {
                 AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
                 Mod.Log.Debug?.Write($" ==== Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
-                
+
                 // TODO: Do we really need this spam?
                 StringBuilder weaponListSB = new StringBuilder();
                 weaponListSB.Append(" Weapons: (");
-                foreach (Weapon weapon3 in attackEvaluation2.WeaponList) {
+                foreach (Weapon weapon3 in attackEvaluation2.WeaponList)
+                {
                     weaponListSB.Append("'");
                     weaponListSB.Append(weapon3.Name);
                     weaponListSB.Append("', ");
@@ -192,7 +133,8 @@ namespace CleverGirl.Helper {
                 weaponListSB.Append(")");
                 Mod.Log.Debug?.Write(weaponListSB.ToString());
 
-                if (attackEvaluation2.WeaponList.Count == 0) {
+                if (attackEvaluation2.WeaponList.Count == 0)
+                {
                     Mod.Log.Debug?.Write("SOLUTION REJECTED - no weapons!");
                 }
 
@@ -200,7 +142,8 @@ namespace CleverGirl.Helper {
                 // TODO: Does not rollup heat!
                 bool willCauseOverheat = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
                 Mod.Log.Debug?.Write($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
-                if (willCauseOverheat && attackerMech.OverheatWillCauseDeath()) {
+                if (willCauseOverheat && attackerMech.OverheatWillCauseDeath())
+                {
                     Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
                     continue;
                 }
@@ -215,66 +158,77 @@ namespace CleverGirl.Helper {
                 //    continue;
                 //}
 
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee) {
-                    if (!attackerAA.CanEngageTarget(target)) {
-                        Mod.Log.Debug?.Write("SOLUTION REJECTED - can't engage target!");
-                        continue;
-                    }
-                    if (meleeDestsForTarget.Count == 0) {
-                        Mod.Log.Debug?.Write("SOLUTION REJECTED - can't build path to target!");
-                        continue;
-                    }
-                    if (targetActor == null) {
+                if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee)
+                {
+
+                    if (targetActor == null)
+                    {
                         Mod.Log.Debug?.Write("SOLUTION REJECTED - target is a building, we can't melee buildings!");
                         continue;
                     }
-                    // TODO: This seems wrong... why can't you melee if the target is already engaged with you?
-                    if (isStationary) {
-                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
-                        continue;
-                    } 
 
                     if (attackerMech.HasMovedThisRound)
                     {
                         Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
                         continue;
                     }
+
+                    if (bestMeleePosition == Vector3.zero)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - cannot build path to target!");
+                        continue;
+                    }
+
+                    // Note this seems weird, but it's an artifact of the behavior tree. If we've gotten a stationary node, don't move.
+                    if (isStationary)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
+                        continue;
+                    }
+
                 }
 
                 // Check for DFA auto-failures
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove) {
-
-                    if (!attackerAA.CanDFATargetFromPosition(target, attackerAA.CurrentPosition)) {
-                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - Cannot DFA target from pos: {attackerAA.CurrentPosition}!");
+                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove)
+                {
+                    if (targetActor == null)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - target is a building, we can't DFA buildings!");
                         continue;
                     }
 
-                    if (dfadestsForTarget.Count == 0) {
-                        Mod.Log.Debug?.Write($"SOLUTION REJECTED - no valid DFA destination pathNodes!");
+                    if (attackerMech.HasMovedThisRound)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
                         continue;
                     }
 
-                    if (targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA) {
+                    if (bestDFAPosition == Vector3.zero)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - cannot build path to target!");
+                        continue;
+                    }
+
+                    if (targetMaxArmorFractionFromHittableLocations < existingTargetDamageForDFA)
+                    {
                         Mod.Log.Debug?.Write($"SOLUTION REJECTED - armor fraction: {targetMaxArmorFractionFromHittableLocations} < behVar(Float_ExistingTargetDamageForDFAAttack): {existingTargetDamageForDFA}!");
                         continue;
                     }
 
-                    if (attackerLegDamage > maxAllowedLegDamageForDFA) {
+                    if (attackerLegDamage > maxAllowedLegDamageForDFA)
+                    {
                         Mod.Log.Debug?.Write($"SOLUTION REJECTED - leg damage: {attackerLegDamage} < behVar(Float_OwnMaxLegDamageForDFAAttack): {maxAllowedLegDamageForDFA}!");
                         continue;
                     }
 
-                    if (attackerMech.HasMovedThisRound)
-                    {
-                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
-                        continue;
-                    }
+    
                 }
 
                 // LOGIC: If we have some damage from an attack, can we improve upon it as a morale / called shot / multi-attack?
-                if (attackEvaluation2.ExpectedDamage > 0f) {
+                if (attackEvaluation2.ExpectedDamage > 0f)
+                {
                     BehaviorTreeResults behaviorTreeResults = new BehaviorTreeResults(BehaviorNodeState.Success);
-                    
+
                     // LOGIC: Check for a morale attack (based on available morale) - target must be shutdown or knocked down
                     //CalledShotAttackOrderInfo offensivePushAttackOrderInfo = AEHelper.MakeOffensivePushOrder(attackerAA, attackEvaluation2, target);
                     //if (offensivePushAttackOrderInfo != null) {
@@ -301,27 +255,27 @@ namespace CleverGirl.Helper {
                     //    behaviorTreeResults.debugOrderString = attackerAA.DisplayName + " using multi attack";
                     //} 
 
-                    AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target) 
+                    AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target)
                     {
                         Weapons = attackEvaluation2.WeaponList,
                         TargetUnit = target
                     };
                     AIUtil.AttackType attackType = attackEvaluation2.AttackType;
 
-                    if (attackType == AIUtil.AttackType.DeathFromAbove) 
+                    if (attackType == AIUtil.AttackType.DeathFromAbove)
                     {
                         attackOrderInfo.IsDeathFromAbove = true;
                         attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
                         attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, dfadestsForTarget);
-                    } 
-                    else if (attackType == AIUtil.AttackType.Melee) 
+                        attackOrderInfo.AttackFromLocation = bestDFAPosition;
+                    }
+                    else if (attackType == AIUtil.AttackType.Melee)
                     {
                         attackOrderInfo.IsMelee = true;
                         attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
                         attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
 
-                        attackOrderInfo.AttackFromLocation = attackerMech.FindBestPositionToMeleeFrom(targetActor, meleeDestsForTarget);
+                        attackOrderInfo.AttackFromLocation = bestMeleePosition;
                     }
 
                     behaviorTreeResults.orderInfo = attackOrderInfo;
@@ -339,5 +293,144 @@ namespace CleverGirl.Helper {
             return 0f;
         }
 
+        private static List<List<CondensedWeapon>> MakeDFAWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
+        {
+            List<List<CondensedWeapon>> dfaWeaponSets = new List<List<CondensedWeapon>>();
+
+            if (attacker == null || !AIHelper.IsDFAAcceptable(attacker, target))
+            {
+                Mod.Log.Debug?.Write(" - Attacker cannot DFA, or DFA is not acceptable.");
+            }
+            else
+            {
+
+                // TODO: Check Retaliation
+                //List<List<CondensedWeapon>> dfaWeaponSets = null;
+                //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
+                //    dfaWeaponSets = AEHelper.MakeWeaponSetsForEvasive(candidateWeapons.DFAWeapons, evasiveToHitFraction, target, attackerAA.CurrentPosition);
+                //} else {
+                //    dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
+                //}
+                List<List<CondensedWeapon>> weaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
+
+                // Add DFA weapons to each set
+                CondensedWeapon cDFAWeapon = new CondensedWeapon(attacker.DFAWeapon);
+                for (int i = 0; i < weaponSets.Count; i++)
+                {
+                    weaponSets[i].Add(cDFAWeapon);
+                }
+
+                dfaWeaponSets = weaponSets;
+            }
+
+            return dfaWeaponSets;
+        }
+
+        private static List<List<CondensedWeapon>> MakeMeleeWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
+        {
+            List<List<CondensedWeapon>> meleeWeaponSets = new List<List<CondensedWeapon>>();
+
+            // Check for HasMoved, because the behavior tree will evaluate a stationary node and generate a melee attack order for it
+            if (attacker == null || attacker.HasMovedThisRound) return meleeWeaponSets;
+
+            if (!attacker.CanEngageTarget(target, out string cannotEngageInMeleeMsg))
+            {
+                Mod.Log.Debug?.Write($" - Attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
+                return meleeWeaponSets;
+            }
+
+            // Expand candidate weapons to a full weapon list for CG so we don't have a cyclical dependency here.
+            List<Weapon> availableWeapons = new List<Weapon>();
+            candidateWeapons.MeleeWeapons.ForEach(x => availableWeapons.AddRange(x.condensedWeapons));
+
+            // Determine the best possible melee attack. 
+            // 1. Usable weapons will include a MeleeWeapon/DFAWeapon with the damage set to the expected virtual damage BEFORE toHit is applied
+            // 2. SelectedState will need to go out to the MakeAO so it can be set
+            CleverGirlCalculator.OptimizeMelee(attacker, target, attackPos, availableWeapons,
+                out List<Weapon> usableWeapons, out MeleeState selectedState,
+                out float virtualMeleeDamage, out float totalStateDamage);
+
+            // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
+            bool mechFavorsMelee = DoesMechFavorMelee(attacker);
+
+            // Check Retaliation
+            // TODO: Retaliation should consider all possible attackers, not just the attacker
+            bool damageOutweighsRetaliation = AEHelper.MeleeDamageOutweighsRisk(totalStateDamage, attacker, target);
+
+            // TODO: Should consider if heat would be reduced by melee attack
+            if (mechFavorsMelee || damageOutweighsRetaliation)
+            {
+                // Convert usableWeapons back to condensedWeapons for evaluation. They should be a subset of 
+                //   meleeWeapons, so we've already checked them for canFire, etc
+                Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
+                foreach (Weapon weapon in usableWeapons)
+                {
+                    CondensedWeapon cWeapon = new CondensedWeapon(weapon);
+                    Mod.Log.Debug?.Write($" -- '{weapon.defId}' included");
+                    string cWepKey = weapon.weaponDef.Description.Id;
+                    if (condensed.ContainsKey(cWepKey))
+                    {
+                        condensed[cWepKey].AddWeapon(weapon);
+                    }
+                    else
+                    {
+                        condensed[cWepKey] = cWeapon;
+                    }
+                }
+                List<CondensedWeapon> condensedUsableWeps = condensed.Values.ToList();
+                Mod.Log.Debug?.Write($"There are {condensedUsableWeps.Count} usable condensed weapons.");
+
+                List<List<CondensedWeapon>> weaponSets = AEHelper.MakeWeaponSets(condensedUsableWeps);
+
+                // Add melee weapon to each set. Increase it's damage to deal with virtual damage
+                CondensedWeapon cMeleeWeapon = new CondensedWeapon(attacker.MeleeWeapon);
+                cMeleeWeapon.First.StatCollection.Set(ModStats.HBS_Weapon_DamagePerShot, virtualMeleeDamage);
+                for (int i = 0; i < weaponSets.Count; i++)
+                {
+                    weaponSets[i].Add(cMeleeWeapon);
+                }
+
+                meleeWeaponSets = weaponSets;
+            }
+            else
+            {
+                Mod.Log.Debug?.Write($" potential melee retaliation too high, skipping melee.");
+            }
+
+            return meleeWeaponSets;
+        }
+
+        private static bool DoesMechFavorMelee(Mech attacker)
+        {
+            bool isMeleeMech = false;
+            if (Mod.Config.UseCBTBEMelee && attacker.StatCollection.GetValue<bool>(ModStats.CBTBE_HasPhysicalWeapon))
+            {
+                Mod.Log.Debug?.Write(" Unit has CBTBE physical weapon, marking isMeleeMech.");
+                isMeleeMech = true;
+            }
+            else
+            {
+                int rawRangedDam = 0, rawMeleeDam = 0;
+                foreach (Weapon weapon in attacker.Weapons)
+                {
+                    if (weapon.WeaponCategoryValue.CanUseInMelee)
+                    {
+                        rawMeleeDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
+                    }
+                    else
+                    {
+                        rawRangedDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
+                    }
+                }
+
+                if (rawMeleeDam >= Mod.Config.Weights.PunchbotDamageMulti * rawRangedDam)
+                {
+                    Mod.Log.Debug?.Write($" Unit isMeleeMech due to rawMelee: {rawMeleeDam} >= rawRanged: {rawRangedDam} x {Mod.Config.Weights.PunchbotDamageMulti}");
+                    isMeleeMech = true;
+                }
+            }
+
+            return isMeleeMech;
+        }
     }
 }

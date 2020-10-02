@@ -44,6 +44,9 @@
     <Reference Include="BattleTech.Common">
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
     </Reference>
+    <Reference Include="CBTBehaviorsEnhanced">
+      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CBTBehaviorsEnhanced\CBTBehaviorsEnhanced.dll</HintPath>
+    </Reference>
     <Reference Include="CustomAmmoCategories">
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
     </Reference>
@@ -79,6 +82,7 @@
     <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
     <Compile Include="Helper\AEHelper.cs" />
+    <Compile Include="Objects\CandidateWeapons.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />

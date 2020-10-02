@@ -185,10 +185,9 @@ namespace CleverGirl
         }
 
 
-        public static bool MeleeDamageOutweighsRisk(Mech attacker, ICombatant target)
+        public static bool MeleeDamageOutweighsRisk(float attackerMeleeDam, Mech attacker, ICombatant target)
         {
 
-            float attackerMeleeDam = AIUtil.ExpectedDamageForMeleeAttackUsingUnitsBVs(attacker, target, attacker.CurrentPosition, target.CurrentPosition, false, attacker);
             if (attackerMeleeDam <= 0f)
             {
                 Mod.Log.Debug?.Write("Attacker has no expected damage, melee is too risky.");
@@ -255,6 +254,8 @@ namespace CleverGirl
             return MakeWeaponSets(weaponsToFire);
 
         }
+
+
 
         // === CLONE METHODS BELOW ==
 
