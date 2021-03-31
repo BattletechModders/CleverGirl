@@ -53,10 +53,10 @@ namespace CleverGirl
 
                 if (cWeapon.First.WeaponCategoryValue.CanUseInMelee)
                 {
-                    Mod.Log.Debug?.Write($" -- can be used in melee, adding to melee and DFA sets.");
+                    Mod.Log.Debug?.Write($" -- can be used in melee, adding to melee sets.");
                     MeleeWeapons.Add(cWeapon);
                     
-                    // CBTRBE Prevents use of weapons in DFA
+                    // CBTBE Prevents use of weapons in DFA
                     //   so just make it empty
                     // DFAWeapons.Add(cWeapon);
                 }
@@ -69,7 +69,7 @@ namespace CleverGirl
                 {
                     Mod.Log.Debug?.Write($" -- has LOF and is within range, adding to ranged set");
                     RangedWeapons.Add(cWeapon);
-                }
+                }                
 
             }
         }

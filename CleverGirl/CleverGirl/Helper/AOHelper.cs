@@ -18,6 +18,7 @@ namespace CleverGirl.Helper {
         public static float MakeAttackOrderForTarget(AbstractActor attackerAA, ICombatant target, 
             bool isStationary, out BehaviorTreeResults order)
         {
+            Mod.Log.Debug?.Write("");
             Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({attackerAA.DistinctId()}) against ({target.DistinctId()} at position: ({target.CurrentPosition})");
 
             // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
@@ -46,7 +47,7 @@ namespace CleverGirl.Helper {
             };
 
             // Note: Disabled the evasion fractional checking that Vanilla uses. Should make units more free with ammunition against evasive foes
-            //float evasiveToHitFraction = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
+            //float evasiveToHitFraction = BehaviorHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_EvasiveToHitFloor).FloatVal / 100f;
 
             // Evaluate ranged attacks 
             //if (targetIsEvasive && attackerAA.UnitType == UnitType.Mech) {
@@ -59,6 +60,7 @@ namespace CleverGirl.Helper {
             AbstractActor targetActor = target as AbstractActor;
 
             weaponSetsByAttackType[0] = AEHelper.MakeRangedWeaponSets(candidateWeapons.RangedWeapons, target, attackerAA.CurrentPosition);
+            Mod.Log.Debug?.Write($"Ranged attack weaponSets:{weaponSetsByAttackType[0].Count}");
 
             Vector3 bestMeleePosition = Vector3.zero;
             if (attackerMech != null && targetActor != null)
@@ -68,6 +70,7 @@ namespace CleverGirl.Helper {
                     attackerMech.FindBestPositionToMeleeFrom(targetActor, meleeDestsForTarget) : Vector3.zero;
                 weaponSetsByAttackType[1] = MakeMeleeWeaponSets(attackerMech, targetActor, bestMeleePosition, candidateWeapons); 
             }
+            Mod.Log.Debug?.Write($"BestMeleePosition: {bestMeleePosition} has weaponSets:{weaponSetsByAttackType[1].Count}");
 
             Vector3 bestDFAPosition = Vector3.zero;
             if (attackerMech != null && targetActor != null)
@@ -78,9 +81,10 @@ namespace CleverGirl.Helper {
                     attackerMech.FindBestPositionToMeleeFrom(targetActor, dfaDestsForTarget) : Vector3.zero;
                 weaponSetsByAttackType[2] = MakeDFAWeaponSets(attackerMech, targetActor, bestDFAPosition, candidateWeapons);
             }
+            Mod.Log.Debug?.Write($"BestDFAPosition: {bestDFAPosition} has weaponSets:{weaponSetsByAttackType[2].Count}");
 
             List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
-            Mod.Log.Debug?.Write(string.Format("found {0} different attack solutions", list.Count));
+            Mod.Log.Debug?.Write(string.Format("AEHelper found {0} different attack solutions after evaluating attacks", list.Count));
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
@@ -110,9 +114,9 @@ namespace CleverGirl.Helper {
             float targetMaxArmorFractionFromHittableLocations = AttackEvaluator.MaxDamageLevel(attackerAA, target);
             float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
 
-            //float existingTargetDamageForOverheat = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
-            float existingTargetDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
-            float maxAllowedLegDamageForDFA = AIHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
+            //float existingTargetDamageForOverheat = BehaviorHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForOverheatAttack).FloatVal;
+            float existingTargetDamageForDFA = BehaviorHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
+            float maxAllowedLegDamageForDFA = BehaviorHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             Mod.Log.Debug?.Write($"  BehVars => ExistingTargetDamageForDFAAttack: {existingTargetDamageForDFA}  OwnMaxLegDamageForDFAAttack: {maxAllowedLegDamageForDFA}");
 
             // LOGIC: Now, evaluate every set of attacks in the list
@@ -167,6 +171,12 @@ namespace CleverGirl.Helper {
                         continue;
                     }
 
+                    //if (!attackerMech.Pathing.CanMeleeMoveTo(targetActor))
+                    //{
+                    //    Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker cannot make a melee move to target!");
+                    //    continue;
+                    //}
+
                     if (attackerMech.HasMovedThisRound)
                     {
                         Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker has already moved!");
@@ -180,9 +190,9 @@ namespace CleverGirl.Helper {
                     }
 
                     // Note this seems weird, but it's an artifact of the behavior tree. If we've gotten a stationary node, don't move.
-                    if (isStationary)
+                    if (!isStationary)
                     {
-                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker was stationary, can't melee");
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker did not choose a stationary move node, should not attack");
                         continue;
                     }
 
@@ -221,7 +231,14 @@ namespace CleverGirl.Helper {
                         continue;
                     }
 
-    
+                    // Note this seems weird, but it's an artifact of the behavior tree. If we've gotten a stationary node, don't move.
+                    if (!isStationary)
+                    {
+                        Mod.Log.Debug?.Write("SOLUTION REJECTED - attacker did not choose a stationary move node, should not attack");
+                        continue;
+                    }
+
+
                 }
 
                 // LOGIC: If we have some damage from an attack, can we improve upon it as a morale / called shot / multi-attack?
@@ -328,18 +345,24 @@ namespace CleverGirl.Helper {
 
         private static List<List<CondensedWeapon>> MakeMeleeWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
         {
+            Mod.Log.Info?.Write($"== Creating melee weaponSets for attacker: {attacker.DistinctId()} versus target: {target.DistinctId()}");
+
             List<List<CondensedWeapon>> meleeWeaponSets = new List<List<CondensedWeapon>>();
 
-            // Check for HasMoved, because the behavior tree will evaluate a stationary node and generate a melee attack order for it
-            if (attacker == null || attacker.HasMovedThisRound) return meleeWeaponSets;
-
-            if (!attacker.CanEngageTarget(target, out string cannotEngageInMeleeMsg))
+            // REVERSING THIS TO CHECK - Check for HasMoved, because the behavior tree will evaluate a stationary node and generate a melee attack order for it
+            if (attacker == null)
             {
-                Mod.Log.Debug?.Write($" - Attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
+                Mod.Log.Info?.Write($" - Attacker is null or has already moved, cannot melee attack");
                 return meleeWeaponSets;
             }
 
-            // Expand candidate weapons to a full weapon list for CG so we don't have a cyclical dependency here.
+            if (!attacker.CanEngageTarget(target, out string cannotEngageInMeleeMsg))
+            {
+                Mod.Log.Info?.Write($" - Attacker cannot melee, or cannot engage due to: '{cannotEngageInMeleeMsg}'");
+                return meleeWeaponSets;
+            }
+
+            // Expand candidate weapons to a full weapon list for CBTBE so we don't have a cyclical dependency here.
             List<Weapon> availableWeapons = new List<Weapon>();
             candidateWeapons.MeleeWeapons.ForEach(x => availableWeapons.AddRange(x.condensedWeapons));
 

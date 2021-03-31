@@ -204,7 +204,7 @@ namespace CleverGirl
             // Use the target mech's position, because if we melee the attacker they can probably get to us
             float targetMeleeDam = AIUtil.ExpectedDamageForMeleeAttackUsingUnitsBVs(targetMech, attacker, targetMech.CurrentPosition, targetMech.CurrentPosition, false, attacker);
             float meleeDamageRatio = attackerMeleeDam / targetMeleeDam;
-            float meleeDamageRatioCap = AIHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_MeleeDamageRatioCap).FloatVal;
+            float meleeDamageRatioCap = BehaviorHelper.GetBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_MeleeDamageRatioCap).FloatVal;
             Mod.Log.Debug?.Write($" meleeDamageRatio: {meleeDamageRatio} = target: {targetMeleeDam} / attacker: {attackerMeleeDam} vs. cap: {meleeDamageRatioCap}");
 
             return meleeDamageRatio > meleeDamageRatioCap;
@@ -372,7 +372,7 @@ namespace CleverGirl
             {
                 return false;
             }
-            if (num < AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_MinimumInspirationDamage).FloatVal)
+            if (num < BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_MinimumInspirationDamage).FloatVal)
             {
                 return false;
             }
@@ -473,20 +473,20 @@ namespace CleverGirl
             {
                 if (armorLoc != ArmorLocation.CenterTorso)
                 {
-                    num = AIHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotOtherBaseChance).FloatVal;
+                    num = BehaviorHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotOtherBaseChance).FloatVal;
                 }
                 else
                 {
-                    num = AIHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotCenterTorsoBaseChance).FloatVal;
+                    num = BehaviorHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotCenterTorsoBaseChance).FloatVal;
                 }
             }
             else
             {
-                num = AIHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotHeadBaseChance).FloatVal;
+                num = BehaviorHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotHeadBaseChance).FloatVal;
             }
             if (locationDamageLevel == LocationDamageLevel.Penalized || locationDamageLevel == LocationDamageLevel.NonFunctional)
             {
-                num *= AIHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotDamagedChanceMultiplier).FloatVal;
+                num *= BehaviorHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotDamagedChanceMultiplier).FloatVal;
             }
             List<MechComponent> componentsForLocation = targetMech.GetComponentsForLocation(chassisLoc, ComponentType.Weapon);
             float num2 = 0f;
@@ -499,7 +499,7 @@ namespace CleverGirl
                     num2 += num3;
                 }
             }
-            return num + AIHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotWeaponDamageChance).FloatVal * num2;
+            return num + BehaviorHelper.GetBehaviorVariableValue(targetMech.BehaviorTree, BehaviorVariableName.Float_CalledShotWeaponDamageChance).FloatVal * num2;
         }
     }
 }

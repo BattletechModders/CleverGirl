@@ -47,10 +47,10 @@ namespace CleverGirl.Patches {
             Mod.Log.Debug?.Write(" === END DESIGNATED TARGET FIRE CHECKS ===");
 
             Mod.Log.Debug?.Write(" === BEGIN OPPORTUNITY FIRE CHECKS ===");
-            float behavior1 = AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
+            float behavior1 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
             float opportunityFireThreshold = 1f + (behavior1 / 100f);
 
-            float behavior2 = AIHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
+            float behavior2 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
             float opportunityFireTakeawayThreshold = 1f + (behavior2 / 100f);
             Mod.Log.Info?.Write($"  Opportunity Fire damageThreshold: {opportunityFireThreshold}  takeawayThreshold: {opportunityFireTakeawayThreshold}");
 

@@ -41,6 +41,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp.dll</HintPath>
     </Reference>
+    <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
     <Reference Include="BattleTech.Common">
       <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
     </Reference>
@@ -78,6 +82,9 @@
   <ItemGroup>
     <Compile Include="Analytics\CombatantAnalytics.cs" />
     <Compile Include="Helper\AOHelper.cs" />
+    <Compile Include="Helper\BehaviorHelper.cs" />
+    <Compile Include="InfluenceMap\CustomInfluenceMapPositionFactor.cs" />
+    <Compile Include="InfluenceMap\CompoundInfluenceMapEvaluator.cs" />
     <Compile Include="ModConsts.cs" />
     <Compile Include="ModInit.cs" />
     <Compile Include="Helper\AIHelper.cs" />
@@ -85,9 +92,10 @@
     <Compile Include="Objects\CandidateWeapons.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
+    <Compile Include="Patches\InfluenceMapEvaluatorPatches.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
-    <Compile Include="Patches\GenerateJumpMoveCandidatesNodePatch.cs" />
+    <Compile Include="Patches\BehaviorNodes\GenerateJumpMoveCandidatesNodePatch.cs" />
     <Compile Include="Patches\ProfilePatches.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ModConfig.cs" />
@@ -105,8 +113,12 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy "$(TargetDir)$(TargetFileName)" "$(BattleTechGame)\Mods\CleverGirl" /y</PostBuildEvent>
+    <PostBuildEvent>if exist "$(BattleTechGame)\Mods\CleverGirl" (
+time /t
+xcopy "$(TargetDir)$(TargetFileName)" "$(BattleTechGame)\Mods\CleverGirl" /y
+)</PostBuildEvent>
   </PropertyGroup>
 </Project>
