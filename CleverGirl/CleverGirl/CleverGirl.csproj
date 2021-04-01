@@ -83,7 +83,6 @@
     <Compile Include="Analytics\CombatantAnalytics.cs" />
     <Compile Include="Helper\AOHelper.cs" />
     <Compile Include="Helper\BehaviorHelper.cs" />
-    <Compile Include="InfluenceMap\CustomInfluenceMapPositionFactor.cs" />
     <Compile Include="InfluenceMap\CompoundInfluenceMapEvaluator.cs" />
     <Compile Include="ModConsts.cs" />
     <Compile Include="ModInit.cs" />
