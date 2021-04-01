@@ -1,6 +1,7 @@
 ﻿
 using BattleTech;
 using CleverGirl.Components;
+using CleverGirl.Helper;
 using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using CustomComponents;
@@ -117,7 +118,7 @@ namespace CleverGirl {
                 {
                     case AIUtil.AttackType.Shooting:
                         {
-                            attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+                            attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
                             break;
                         }
                     case AIUtil.AttackType.Melee:
@@ -126,19 +127,19 @@ namespace CleverGirl {
                             Mech attackingMech = attacker as Mech;
                             if (attackParams.UseRevengeBonus && targetMech != null && attackingMech != null && attackingMech.IsMeleeRevengeTarget(targetMech))
                             {
-                                attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeRevengeBonus).FloatVal;
+                                attackTypeWeight += BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeRevengeBonus).FloatVal;
                             }
                             if (attackingMech != null && cWeapon.First == attackingMech.MeleeWeapon)
                             {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeDamageMultiplier).FloatVal;
+                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeDamageMultiplier).FloatVal;
                                 if (attackParams.TargetIsUnsteady)
                                 {
-                                    attackTypeWeight += AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeVsUnsteadyTargetDamageMultiplier).FloatVal;
+                                    attackTypeWeight += BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeVsUnsteadyTargetDamageMultiplier).FloatVal;
                                 }
                             }
                             else
                             {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
                             }
                             break;
                         }
@@ -147,11 +148,11 @@ namespace CleverGirl {
                             Mech attackerMech = attacker as Mech;
                             if (attackerMech != null && cWeapon.First == attackerMech.DFAWeapon)
                             {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_DFADamageMultiplier).FloatVal;
+                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_DFADamageMultiplier).FloatVal;
                             }
                             else
                             {
-                                attackTypeWeight = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
+                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
                             }
                             break;
                         }
@@ -168,16 +169,16 @@ namespace CleverGirl {
                 }
                 Mod.Log.Debug?.Write($"Evaluating weapon: {cWeapon.First.Name} with toHitFromPos:{toHitFromPos}");
 
-                float heatToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
-                float stabToDamRatio = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
+                float heatToDamRatio = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
+                float stabToDamRatio = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
 
                 float meleeStatusWeights = 0f;
                 if (attackParams.AttackType == AIUtil.AttackType.Melee)
                 {
-                    float bracedMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal;
+                    float bracedMeleeMulti = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingBracedTargets).FloatVal;
                     if (attackParams.TargetIsBraced) { meleeStatusWeights += bracedMeleeMulti; }
 
-                    float evasiveMeleeMulti = AIHelper.GetCachedBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
+                    float evasiveMeleeMulti = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeBonusMultiplierWhenAttackingEvasiveTargets).FloatVal;
                     if (attackParams.TargetIsEvasive) { meleeStatusWeights += evasiveMeleeMulti; }
                 }
                 Mod.Log.Debug?.Write($"Melee status weight calculated as: {meleeStatusWeights}");
@@ -366,14 +367,14 @@ namespace CleverGirl {
             {
                 attackerLegDamage = AttackEvaluator.LegDamageLevel(mech);
             }
-            float ownMaxLegDam = GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
+            float ownMaxLegDam = BehaviorHelper.GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             if (attackerLegDamage >= ownMaxLegDam)
             {
                 Mod.Log.Debug?.Write($"Attack will damage own legs too much - skipping DFA! Self leg damage: {attackerLegDamage} >= OwnMaxLegDamageForDFAAttack BehVar: {ownMaxLegDam}");
                 return false;
             }
 
-            float existingTargetDam = GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
+            float existingTargetDam = BehaviorHelper.GetCachedBehaviorVariableValue(attacker.BehaviorTree, BehaviorVariableName.Float_ExistingTargetDamageForDFAAttack).FloatVal;
             float maxTargetDam = AttackEvaluator.MaxDamageLevel(attacker, targetActor);
             Mod.Log.Debug?.Write($"Returning {maxTargetDam >= existingTargetDam} as maxTargetDamage: {maxTargetDam} >= ExistingTargetDamageForDFAAttack BehVar: {existingTargetDam}");
             return maxTargetDam >= existingTargetDam;

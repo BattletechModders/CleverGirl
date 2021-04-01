@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using CleverGirl.Analytics;
+using CleverGirl.Helper;
 using CleverGirlAIDamagePrediction;
 using IRBTModUtils.Extension;
 using System.Collections.Concurrent;

@@ -1,10 +1,14 @@
-﻿using CleverGirl.Patches;
+﻿using CleverGirl.InfluenceMap;
+using CleverGirl.Patches;
 using CustAmmoCategories;
 using Harmony;
+using IRBTModUtils.CustomInfluenceMap;
 using IRBTModUtils.Logging;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using us.frostraptor.modUtils.logging;
 
@@ -43,6 +47,8 @@ namespace CleverGirl {
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
 
+            // Scan packages for instances of our interface
+
             // Initialize custom components
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
 
@@ -56,6 +62,35 @@ namespace CleverGirl {
 
             harmony.PatchAll(asm);
 
+        }
+
+        private static void InitInfluenceMapFactors()
+        {
+            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapAllyFactor>())
+            {
+                CustomInfluenceMapAllyFactor instance = (CustomInfluenceMapAllyFactor)Activator.CreateInstance(type);
+                ModState.InfluenceMapAllyFactors.Add(instance);
+            }
+
+            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapHostileFactor>())
+            {
+                CustomInfluenceMapHostileFactor instance = (CustomInfluenceMapHostileFactor)Activator.CreateInstance(type);
+                ModState.InfluenceMapHostileFactors.Add(instance);
+            }
+
+            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapPositionFactor>())
+            {
+                CustomInfluenceMapPositionFactor instance = (CustomInfluenceMapPositionFactor)Activator.CreateInstance(type);
+                ModState.InfluenceMapPositionFactors.Add(instance);
+            }
+        }
+
+        // Stolen from https://makolyte.com/csharp-load-all-types-that-implement-an-interface-in-the-current-assembly/
+        private static IEnumerable<Type> GetAllTypesThatImplementInterface<T>()
+        {
+            return Assembly.GetExecutingAssembly()
+                .GetTypes()
+                .Where(type => typeof(T).IsAssignableFrom(type) && !type.IsInterface);
         }
     }
 }

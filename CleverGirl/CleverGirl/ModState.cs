@@ -1,6 +1,8 @@
 ﻿using BattleTech;
 using BattleTech.UI;
 using CleverGirl.Analytics;
+using CleverGirl.InfluenceMap;
+using IRBTModUtils.CustomInfluenceMap;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
@@ -38,6 +40,11 @@ namespace CleverGirl {
         // Needs compound key of invoke count, total runtime?
         public static Dictionary<string, List<long>> InvokeCounts = new Dictionary<string, List<long>>();
 
+        // InfluenceMap elements
+        public static List<CustomInfluenceMapAllyFactor> InfluenceMapAllyFactors = new List<CustomInfluenceMapAllyFactor>();
+        public static List<CustomInfluenceMapHostileFactor> InfluenceMapHostileFactors = new List<CustomInfluenceMapHostileFactor>();
+        public static List<CustomInfluenceMapPositionFactor> InfluenceMapPositionFactors = new List<CustomInfluenceMapPositionFactor>();
+
         public static void Reset() {
             // Reinitialize state
             WithdrawalTriggered = false;
@@ -45,6 +52,8 @@ namespace CleverGirl {
             RetreatButton = null;
             BehaviorVarValuesCache.Clear();
             //RangeToTargetsAlliesCache.Clear();
+
+            InfluenceMapPositionFactors.Clear();
         }
     }
 }
