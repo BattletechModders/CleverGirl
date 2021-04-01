@@ -48,6 +48,7 @@ namespace CleverGirl {
             var harmony = HarmonyInstance.Create(HarmonyPackage);
 
             // Scan packages for instances of our interface
+            InitInfluenceMapFactors();
 
             // Initialize custom components
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
@@ -66,31 +67,49 @@ namespace CleverGirl {
 
         private static void InitInfluenceMapFactors()
         {
+            Mod.Log.Info?.Write($"Checking for relevant types in all assemblies");
+            // Record custom types from mods
             foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapAllyFactor>())
             {
+                Mod.Log.Info?.Write($"Adding ally factor: {type.FullName}");
                 CustomInfluenceMapAllyFactor instance = (CustomInfluenceMapAllyFactor)Activator.CreateInstance(type);
-                ModState.InfluenceMapAllyFactors.Add(instance);
+                ModState.CustomAllyFactors.Add(instance);
             }
 
             foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapHostileFactor>())
             {
+                Mod.Log.Info?.Write($"Adding hostile factor: {type.FullName}");
                 CustomInfluenceMapHostileFactor instance = (CustomInfluenceMapHostileFactor)Activator.CreateInstance(type);
-                ModState.InfluenceMapHostileFactors.Add(instance);
+                ModState.CustomHostileFactors.Add(instance);
             }
 
             foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapPositionFactor>())
             {
+                Mod.Log.Info?.Write($"Adding position factor: {type.FullName}");
                 CustomInfluenceMapPositionFactor instance = (CustomInfluenceMapPositionFactor)Activator.CreateInstance(type);
-                ModState.InfluenceMapPositionFactors.Add(instance);
+                ModState.CustomPositionFactors.Add(instance);
             }
+
+            // Record removals from mods
+            foreach (var type in GetAllTypesThatImplementInterface<InfluenceMapFactorsToRemove>())
+            {
+                Mod.Log.Info?.Write($"Found factors to remove: {type.FullName}");
+                InfluenceMapFactorsToRemove factors = (InfluenceMapFactorsToRemove)Activator.CreateInstance(type);
+                ModState.AllyFactorsToRemove.AddRange(factors.AllyFactorsToRemove());
+                ModState.HostileFactorsToRemove.AddRange(factors.HostileFactorsToRemove());
+                ModState.PositionFactorsToRemove.AddRange(factors.PositionFactorsToRemove());
+            }
+            Mod.Log.Info?.Write($" -- Done checking for influence factors");
         }
 
-        // Stolen from https://makolyte.com/csharp-load-all-types-that-implement-an-interface-in-the-current-assembly/
         private static IEnumerable<Type> GetAllTypesThatImplementInterface<T>()
         {
-            return Assembly.GetExecutingAssembly()
-                .GetTypes()
-                .Where(type => typeof(T).IsAssignableFrom(type) && !type.IsInterface);
+            var targetType = typeof(T);
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic)
+                .SelectMany(s => s.GetTypes())
+                .Where(p => !p.IsInterface && !p.IsAbstract)
+                .Where(p => targetType.IsAssignableFrom(p));
         }
     }
 }

@@ -2,6 +2,7 @@
 using CleverGirl.Helper;
 using GraphCoroutines;
 using Harmony;
+using IRBTModUtils.CustomInfluenceMap;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -147,8 +148,16 @@ namespace CleverGirl.InfluenceMap
 			while (posFactorIndex < positionalFactors.Length)
 			{
 				InfluenceMapPositionFactor factor = positionalFactors[posFactorIndex];
+
 				float regularWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
 				float sprintWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
+				if (factor is CustomInfluenceMapPositionFactor customFactor)
+				{
+					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
+					regularWeight = customFactor.GetRegularMoveWeight(unit);
+					sprintWeight = customFactor.GetSprintMoveWeight(unit);
+				}
+
 				int num;
 				if (regularWeight != 0f && sprintWeight != 0f)
 				{
@@ -245,10 +254,16 @@ namespace CleverGirl.InfluenceMap
 				{
 					specialLogging = true;
 				}
-				BehaviorVariableName regularMoveWeightBVName = factor.GetRegularMoveWeightBVName();
-				BehaviorVariableName sprintMoveWeightBVName = factor.GetSprintMoveWeightBVName();
-				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, regularMoveWeightBVName).FloatVal;
-				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, sprintMoveWeightBVName).FloatVal;
+
+				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
+				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
+				if (factor is CustomInfluenceMapHostileFactor customFactor)
+				{
+					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
+					regularMoveWeight = customFactor.GetRegularMoveWeight(unit);
+					sprintMoveWeight = customFactor.GetSprintMoveWeight(unit);
+				}
+
 				int num2;
 				if (regularMoveWeight != 0f && sprintMoveWeight != 0f)
 				{
@@ -321,10 +336,16 @@ namespace CleverGirl.InfluenceMap
 			{
 				InfluenceMapAllyFactor factor = allyFactors[allyFactorIndex];
 				AIUtil.LogAI("evaluating " + factor.Name);
-				BehaviorVariableName regularMoveWeightBVName = factor.GetRegularMoveWeightBVName();
-				BehaviorVariableName sprintMoveWeightBVName = factor.GetSprintMoveWeightBVName();
-				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, regularMoveWeightBVName).FloatVal;
-				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, sprintMoveWeightBVName).FloatVal;
+
+				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
+				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
+				if (factor is CustomInfluenceMapAllyFactor customFactor)
+				{
+					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
+					regularMoveWeight = customFactor.GetRegularMoveWeight(unit);
+					sprintMoveWeight = customFactor.GetSprintMoveWeight(unit);
+				}
+
 				int num2;
 				if (regularMoveWeight != 0f || sprintMoveWeight != 0f)
 				{

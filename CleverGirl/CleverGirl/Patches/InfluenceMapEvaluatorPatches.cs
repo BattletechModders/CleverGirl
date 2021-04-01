@@ -24,18 +24,18 @@ namespace CleverGirl.Patches
 			ref PreferHigherExpectedDamageToHostileFactor ___expectedDamageFactor)
         {
 			List<InfluenceMapAllyFactor> allyFactors = new List<InfluenceMapAllyFactor>(___allyFactors);
-			Mod.Log.Info?.Write($"Adding {ModState.InfluenceMapAllyFactors.Count} custom ally factors to influence map.");
-			allyFactors.AddRange(ModState.InfluenceMapAllyFactors);
+			Mod.Log.Info?.Write($"Adding {ModState.CustomAllyFactors.Count} custom ally factors to influence map.");
+			allyFactors.AddRange(ModState.CustomAllyFactors);
 			___allyFactors = allyFactors.ToArray();
 
 			List<InfluenceMapHostileFactor> hostileFactors = new List<InfluenceMapHostileFactor>(___hostileFactors);
-			Mod.Log.Info?.Write($"Adding {ModState.InfluenceMapHostileFactors.Count} custom hostile factors to influence map.");
-			hostileFactors.AddRange(ModState.InfluenceMapHostileFactors); 
+			Mod.Log.Info?.Write($"Adding {ModState.CustomHostileFactors.Count} custom hostile factors to influence map.");
+			hostileFactors.AddRange(ModState.CustomHostileFactors); 
 			___hostileFactors = hostileFactors.ToArray();
 
 			List<InfluenceMapPositionFactor> positionFactors = new List<InfluenceMapPositionFactor>(___positionalFactors);
-			Mod.Log.Info?.Write($"Adding {ModState.InfluenceMapPositionFactors.Count} custom position factors to influence map.");
-			positionFactors.AddRange(ModState.InfluenceMapPositionFactors);
+			Mod.Log.Info?.Write($"Adding {ModState.CustomPositionFactors.Count} custom position factors to influence map.");
+			positionFactors.AddRange(ModState.CustomPositionFactors);
 			___positionalFactors = positionFactors.ToArray();
 
 		}
@@ -43,7 +43,8 @@ namespace CleverGirl.Patches
 	
 
     [HarmonyPatch(typeof(InfluenceMapEvaluator), "RunEvaluationForSeconds")]
-    static class InfluenceMapEvaluator_RunEvaluationForSeconds
+	[HarmonyBefore("io.github.mpstark.AIToolkit")]
+	static class InfluenceMapEvaluator_RunEvaluationForSeconds
     {
 
         static bool Prefix(InfluenceMapEvaluator __instance, float seconds, ref bool __result, 
@@ -54,6 +55,7 @@ namespace CleverGirl.Patches
 			float realtimeSinceStartup = Time.realtimeSinceStartup;
 			if (___evaluationCoroutine == null)
 			{
+				Mod.Log.Info?.Write("Generating new CompoundInfluenceMapEvaluator");
 				CompoundInfluenceMapEvaluator cime = new CompoundInfluenceMapEvaluator(__instance);
 				___evaluationCoroutine = new GraphCoroutine(cime.IncrementalEvaluate());
 			}

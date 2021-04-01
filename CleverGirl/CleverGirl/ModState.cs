@@ -41,9 +41,14 @@ namespace CleverGirl {
         public static Dictionary<string, List<long>> InvokeCounts = new Dictionary<string, List<long>>();
 
         // InfluenceMap elements
-        public static List<CustomInfluenceMapAllyFactor> InfluenceMapAllyFactors = new List<CustomInfluenceMapAllyFactor>();
-        public static List<CustomInfluenceMapHostileFactor> InfluenceMapHostileFactors = new List<CustomInfluenceMapHostileFactor>();
-        public static List<CustomInfluenceMapPositionFactor> InfluenceMapPositionFactors = new List<CustomInfluenceMapPositionFactor>();
+        public static List<CustomInfluenceMapAllyFactor> CustomAllyFactors = new List<CustomInfluenceMapAllyFactor>();
+        public static List<InfluenceMapAllyFactor> AllyFactorsToRemove = new List<InfluenceMapAllyFactor>();
+
+        public static List<CustomInfluenceMapHostileFactor> CustomHostileFactors = new List<CustomInfluenceMapHostileFactor>();
+        public static List<InfluenceMapHostileFactor> HostileFactorsToRemove = new List<InfluenceMapHostileFactor>();
+
+        public static List<CustomInfluenceMapPositionFactor> CustomPositionFactors = new List<CustomInfluenceMapPositionFactor>();
+        public static List<InfluenceMapPositionFactor> PositionFactorsToRemove = new List<InfluenceMapPositionFactor>();
 
         public static void Reset() {
             // Reinitialize state
@@ -52,8 +57,6 @@ namespace CleverGirl {
             RetreatButton = null;
             BehaviorVarValuesCache.Clear();
             //RangeToTargetsAlliesCache.Clear();
-
-            InfluenceMapPositionFactors.Clear();
         }
     }
 }
