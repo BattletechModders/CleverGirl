@@ -140,15 +140,21 @@ namespace CleverGirl.Helper {
                 if (attackEvaluation2.WeaponList.Count == 0)
                 {
                     Mod.Log.Debug?.Write("SOLUTION REJECTED - no weapons!");
+                    continue;
                 }
 
                 // TODO: Does heatGenerated account for jump heat?
                 // TODO: Does not rollup heat!
                 bool willCauseOverheat = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
                 Mod.Log.Debug?.Write($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
-                if (willCauseOverheat && attackerMech.OverheatWillCauseDeath())
+                //if (willCauseOverheat && attackerMech.OverheatWillCauseDeath())
+                //{
+                //    Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
+                //    continue;
+                //}
+                if (willCauseOverheat)
                 {
-                    Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
+                    Mod.Log.Info?.Write("SOLUTION REJECTED - would cause overheat.");
                     continue;
                 }
 
