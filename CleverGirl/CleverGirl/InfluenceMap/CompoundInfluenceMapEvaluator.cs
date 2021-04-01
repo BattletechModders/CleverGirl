@@ -23,21 +23,29 @@ namespace CleverGirl.InfluenceMap
 
 		public IEnumerable<Instruction> IncrementalEvaluate()
 		{
-			yield return ControlFlow.Call(Eval_Initialize());
-
-			// Prep the unit
+			// Set the unit field, which is used by most methods
 			Traverse unitT = Traverse.Create(hbsIME).Field("unit");
 			this.unit = unitT.GetValue<AbstractActor>();
 
+			Mod.Log.Info?.Write($"Initializing the evaluation");
+			yield return ControlFlow.Call(Eval_Initialize());
+
+			Mod.Log.Info?.Write($"Evaluating position factors");
 			yield return ControlFlow.Call(Eval_PositionalFactors());
+
+			Mod.Log.Info?.Write($"Evaluating hostile factors");
 			yield return ControlFlow.Call(Eval_HostileFactors());
+
+			Mod.Log.Info?.Write($"Evaluating ally factors");
 			yield return ControlFlow.Call(Eval_AllyFactors());
+
+			Mod.Log.Info?.Write($"Applying sprint scaling");
 			yield return ControlFlow.Call(Apply_SprintScaling());
 
 			hbsIME.expectedDamageFactor.LogEvaluation();
 
 			Traverse evaluationCompleteT = Traverse.Create(hbsIME).Field("evaluationComplete");
-			evaluationCompleteT.SetValue(true);			
+			evaluationCompleteT.SetValue(true);
 
 			yield return null;
 		}
@@ -45,8 +53,10 @@ namespace CleverGirl.InfluenceMap
 		// Prep the influence map to be evaluated
 		private IEnumerable<Instruction> Eval_Initialize()
 		{
+			Mod.Log.Info?.Write($"Resetting the workspace");
 			hbsIME.ResetWorkspace();
 
+			Mod.Log.Info?.Write($"Evaluating {unit?.BehaviorTree?.movementCandidateLocations.Count} locations");
 			for (int i = 0; i < unit.BehaviorTree.movementCandidateLocations.Count; i++)
 			{
 				if (!hbsIME.IsMovementCandidateLocationReachable(unit, unit.BehaviorTree.movementCandidateLocations[i]))
@@ -131,6 +141,7 @@ namespace CleverGirl.InfluenceMap
 
 			Traverse positionalFactorsT = Traverse.Create(hbsIME).Field("positionalFactors");
 			InfluenceMapPositionFactor[] positionalFactors = positionalFactorsT.GetValue<InfluenceMapPositionFactor[]>();
+			Mod.Log.Info?.Write($"Evaluating {positionalFactors.Length} position factors");
 
 			int posFactorIndex = 0;
 			while (posFactorIndex < positionalFactors.Length)
@@ -215,12 +226,15 @@ namespace CleverGirl.InfluenceMap
 			}
 			unit.EvaluateExpectedArmor();
 			yield return null;
+
 			int intVal = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Int_HostileInfluenceCount).IntVal;
 			List<ICombatant> hostiles = getNClosestCombatants(unit.BehaviorTree.enemyUnits, intVal);
+			AIUtil.LogAI($"evaluating vs {hostiles.Count} hostiles");
 
 			Traverse hostileFactorsT = Traverse.Create(hbsIME).Field("hostileFactors");
 			InfluenceMapHostileFactor[] hostileFactors = hostileFactorsT.GetValue<InfluenceMapHostileFactor[]>();
-			AIUtil.LogAI($"evaluating vs {hostiles.Count} hostiles");
+			Mod.Log.Info?.Write($"Evaluating {hostileFactors.Length} hostile factors");
+
 			int hostileFactorIndex = 0;
 			while (hostileFactorIndex < hostileFactors.Length)
 			{
@@ -296,10 +310,12 @@ namespace CleverGirl.InfluenceMap
 		{
 			int intVal = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Int_AllyInfluenceCount).IntVal;
 			List<ICombatant> allies = getNClosestCombatants(unit.BehaviorTree.GetAllyUnits().ConvertAll((Converter<AbstractActor, ICombatant>)((AbstractActor X) => X)), intVal);
+			AIUtil.LogAI($"evaluating vs {allies.Count} allies");
 
 			Traverse allyFactorsT = Traverse.Create(hbsIME).Field("allyFactors");
 			InfluenceMapAllyFactor[] allyFactors = allyFactorsT.GetValue<InfluenceMapAllyFactor[]>();
-			AIUtil.LogAI($"evaluating vs {allies.Count} allies");
+			Mod.Log.Info?.Write($"Evaluating {allyFactors.Length} ally factors");
+
 			int allyFactorIndex = 0;
 			while (allyFactorIndex < allyFactors.Length)
 			{

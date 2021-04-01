@@ -19,14 +19,14 @@ namespace CleverGirl.Patches
 	static class InfluenceMapEvaluator_ctor
     {
 		// Add custom 
-		static void Postfix(InfluenceMapEvaluator __instance, ref InfluenceMapAllyFactor[] ___allyfactors, 
+		static void Postfix(InfluenceMapEvaluator __instance, ref InfluenceMapAllyFactor[] ___allyFactors, 
 			ref InfluenceMapHostileFactor[] ___hostileFactors, ref InfluenceMapPositionFactor[] ___positionalFactors,
 			ref PreferHigherExpectedDamageToHostileFactor ___expectedDamageFactor)
         {
-			List<InfluenceMapAllyFactor> allyFactors = new List<InfluenceMapAllyFactor>(___allyfactors);
+			List<InfluenceMapAllyFactor> allyFactors = new List<InfluenceMapAllyFactor>(___allyFactors);
 			Mod.Log.Info?.Write($"Adding {ModState.InfluenceMapAllyFactors.Count} custom ally factors to influence map.");
 			allyFactors.AddRange(ModState.InfluenceMapAllyFactors);
-			___allyfactors = allyFactors.ToArray();
+			___allyFactors = allyFactors.ToArray();
 
 			List<InfluenceMapHostileFactor> hostileFactors = new List<InfluenceMapHostileFactor>(___hostileFactors);
 			Mod.Log.Info?.Write($"Adding {ModState.InfluenceMapHostileFactors.Count} custom hostile factors to influence map.");
