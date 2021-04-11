@@ -47,9 +47,6 @@ namespace CleverGirl {
 
             var harmony = HarmonyInstance.Create(HarmonyPackage);
 
-            // Scan packages for instances of our interface
-            InitInfluenceMapFactors();
-
             // Initialize custom components
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
 
@@ -63,6 +60,13 @@ namespace CleverGirl {
 
             harmony.PatchAll(asm);
 
+        }
+
+        // Invoked by ModTek once all other mods are finished loading
+        public static void FinishedLoading()
+        {
+            // Scan packages for instances of our interface
+            InitInfluenceMapFactors();
         }
 
         private static void InitInfluenceMapFactors()

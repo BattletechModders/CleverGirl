@@ -1,6 +1,7 @@
 ﻿using BattleTech;
 using CBTBehaviorsEnhanced;
 using CBTBehaviorsEnhanced.Helper;
+using CBTBehaviorsEnhanced.MeleeStates;
 using CleverGirlAIDamagePrediction;
 using IRBTModUtils.Extension;
 using System.Collections.Generic;
@@ -376,7 +377,7 @@ namespace CleverGirl.Helper {
             // 1. Usable weapons will include a MeleeWeapon/DFAWeapon with the damage set to the expected virtual damage BEFORE toHit is applied
             // 2. SelectedState will need to go out to the MakeAO so it can be set
             CleverGirlCalculator.OptimizeMelee(attacker, target, attackPos, availableWeapons,
-                out List<Weapon> usableWeapons, out MeleeState selectedState,
+                out List<Weapon> usableWeapons, out MeleeAttack selectedAttack,
                 out float virtualMeleeDamage, out float totalStateDamage);
 
             // Determine if we're a punchbot - defined by melee damage 2x or greater than raw ranged damage
