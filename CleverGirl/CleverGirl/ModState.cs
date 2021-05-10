@@ -5,6 +5,7 @@ using CleverGirl.InfluenceMap;
 using IRBTModUtils.CustomInfluenceMap;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace CleverGirl {
 
@@ -49,6 +50,10 @@ namespace CleverGirl {
 
         public static List<CustomInfluenceMapPositionFactor> CustomPositionFactors = new List<CustomInfluenceMapPositionFactor>();
         public static List<InfluenceMapPositionFactor> PositionFactorsToRemove = new List<InfluenceMapPositionFactor>();
+
+        // Roleplayer Integration
+        public static object RolePlayerBehaviorVarManager;
+        public static MethodInfo RolePlayerGetBehaviorVar;
 
         public static void Reset() {
             // Reinitialize state

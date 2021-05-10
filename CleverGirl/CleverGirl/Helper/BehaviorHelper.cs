@@ -19,6 +19,36 @@ namespace CleverGirl.Helper
         // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE
         public static BehaviorVariableValue GetBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name)
         {
+
+            if (ModState.RolePlayerBehaviorVarManager != null && ModState.RolePlayerGetBehaviorVar != null)
+            {
+                // Ask RolePlayer for the variable
+                //getBehaviourVariable(AbstractActor actor, BehaviorVariableName name)
+                return (BehaviorVariableValue)ModState.RolePlayerGetBehaviorVar.Invoke(ModState.RolePlayerBehaviorVarManager, new object[] { bTree.unit, name });
+            }
+            else
+            {
+                // Read it directly
+                return GetBehaviorVariableValueDirectly(bTree, name);
+            }
+
+        }
+
+        // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE
+        private  static BehaviorVariableValue GetBehaviorVariableValueDirectly(BehaviorTree bTree, BehaviorVariableName name)
+        {
+            //getBehaviourVariable(AbstractActor actor, BehaviorVariableName name)
+
+            if (ModState.RolePlayerGetBehaviorVar != null)
+            {
+                // Ask RolePlayer for the variable
+            }
+            else
+            {
+                // Read it directly
+            }
+
+
             BehaviorVariableValue behaviorVariableValue = bTree.unitBehaviorVariables.GetVariable(name);
             if (behaviorVariableValue != null)
             {

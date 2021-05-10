@@ -67,6 +67,42 @@ namespace CleverGirl {
         {
             // Scan packages for instances of our interface
             InitInfluenceMapFactors();
+
+            // Check for RolePlayer and use it's BehaviorVar link instead
+            InitRoleplayerLink();
+        }
+
+        private static void InitRoleplayerLink()
+        {
+            try
+            {
+                Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                foreach (Assembly assembly in assemblies)
+                {
+                    if (assembly.FullName.StartsWith("RolePlayer"))
+                    {
+                        // Find the manager and pull it's singleton instance
+                        Type managerType = assembly.GetType("RolePlayer.BehaviorVariableManager");
+                        PropertyInfo instancePropertyType = managerType.GetProperty("Instance");
+                        ModState.RolePlayerBehaviorVarManager = instancePropertyType.GetValue(null);
+
+                        // Find the method
+                        if (managerType != null)
+                        {
+                            ModState.RolePlayerGetBehaviorVar = managerType.GetMethod("getBehaviourVariable", BindingFlags.Static | BindingFlags.Public);
+                            Mod.Log.Info?.Write("Successfully linked with RolePlayer");
+                        }
+                        else
+                        {
+                            Mod.Log.Warn?.Write("Failed to find RolePlayer.BehaviorVariableManager.getBehaviourVariable - RP behavior variables will be ignored!");
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Mod.Log.Error?.Write(e, "Error trying to initialize RolePlayer link!");
+            }
         }
 
         private static void InitInfluenceMapFactors()
