@@ -1,4 +1,5 @@
-﻿using CleverGirl.InfluenceMap;
+﻿using BattleTech;
+using CleverGirl.InfluenceMap;
 using CleverGirl.Patches;
 using CustAmmoCategories;
 using Harmony;
@@ -76,6 +77,7 @@ namespace CleverGirl {
         {
             try
             {
+                Mod.Log.Info?.Write(" -- Checking for RolePlayer Integration -- ");
                 Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
                 foreach (Assembly assembly in assemblies)
                 {
@@ -83,19 +85,28 @@ namespace CleverGirl {
                     {
                         // Find the manager and pull it's singleton instance
                         Type managerType = assembly.GetType("RolePlayer.BehaviorVariableManager");
+                        if (managerType == null)
+                        {
+                            Mod.Log.Warn?.Write("  Failed to find RolePlayer.BehaviorVariableManager.getBehaviourVariable - RP behavior variables will be ignored!");
+                            return;
+                        }
+
                         PropertyInfo instancePropertyType = managerType.GetProperty("Instance");
                         ModState.RolePlayerBehaviorVarManager = instancePropertyType.GetValue(null);
+                        if (ModState.RolePlayerBehaviorVarManager == null)
+                        {
+                            Mod.Log.Warn?.Write("  Failed to get RolePlayer.BehaviorVariableManager instance!");
+                            return;
+                        }
 
                         // Find the method
-                        if (managerType != null)
-                        {
-                            ModState.RolePlayerGetBehaviorVar = managerType.GetMethod("getBehaviourVariable", BindingFlags.Static | BindingFlags.Public);
-                            Mod.Log.Info?.Write("Successfully linked with RolePlayer");
-                        }
+                        ModState.RolePlayerGetBehaviorVar = managerType.GetMethod("getBehaviourVariable", new Type[] { typeof(AbstractActor), typeof(BehaviorVariableName) });
+                        
+                        if (ModState.RolePlayerGetBehaviorVar != null)
+                            Mod.Log.Info?.Write("  Successfully linked with RolePlayer");
                         else
-                        {
-                            Mod.Log.Warn?.Write("Failed to find RolePlayer.BehaviorVariableManager.getBehaviourVariable - RP behavior variables will be ignored!");
-                        }
+                            Mod.Log.Warn?.Write("  Failed to find RolePlayer.BehaviorVariableManager.getBehaviourVariable - RP behavior variables will be ignored!");
+
                     }
                 }
             }

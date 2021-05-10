@@ -54,77 +54,87 @@ namespace CleverGirl.InfluenceMap
 		// Prep the influence map to be evaluated
 		private IEnumerable<Instruction> Eval_Initialize()
 		{
-			Mod.Log.Info?.Write($"Resetting the workspace");
-			hbsIME.ResetWorkspace();
+			try
+            {
 
-			Mod.Log.Info?.Write($"Evaluating {unit?.BehaviorTree?.movementCandidateLocations.Count} locations");
-			for (int i = 0; i < unit.BehaviorTree.movementCandidateLocations.Count; i++)
-			{
-				if (!hbsIME.IsMovementCandidateLocationReachable(unit, unit.BehaviorTree.movementCandidateLocations[i]))
-				{
-					continue;
-				}
+				Mod.Log.Info?.Write($"Resetting the workspace");
+				hbsIME.ResetWorkspace();
 
-				MoveDestination moveDestination = unit.BehaviorTree.movementCandidateLocations[i];
-				PathNode pathNode = moveDestination.PathNode;
-				float num = PathingUtil.FloatAngleFrom8Angle(pathNode.Angle);
-				float num2 = 0f;
-				AbstractActor abstractActor = null;
-				MeleeMoveDestination meleeMoveDestination = moveDestination as MeleeMoveDestination;
-				if (meleeMoveDestination != null)
+				Mod.Log.Info?.Write($"Evaluating {unit?.BehaviorTree?.movementCandidateLocations.Count} locations");
+				for (int i = 0; i < unit.BehaviorTree.movementCandidateLocations.Count; i++)
 				{
-					abstractActor = meleeMoveDestination.Target;
-				}
-
-				switch (unit.BehaviorTree.movementCandidateLocations[i].MoveType)
-				{
-					case MoveType.Walking:
-						num2 = unit.MaxWalkDistance;
-						break;
-					case MoveType.Sprinting:
-						num2 = unit.MaxSprintDistance;
-						break;
-					case MoveType.Backward:
-						num2 = unit.MaxBackwardDistance;
-						break;
-					case MoveType.Jumping:
-						{
-							Mech mech2 = unit as Mech;
-							if (mech2 != null)
-							{
-								num2 = mech2.JumpDistance;
-							}
-							break;
-						}
-					case MoveType.Melee:
-						{
-							Mech mech = unit as Mech;
-							if (mech != null)
-							{
-								num2 = mech.MaxMeleeEngageRangeDistance;
-							}
-							break;
-						}
-				}
-
-				float num3 = Mathf.Min(unit.Pathing.GetAngleAvailable(num2 - pathNode.CostToThisNode), 180f);
-				float floatVal = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_AngularSelectionResolution).FloatVal;
-				if (abstractActor == null)
-				{
-					for (float num4 = 0f; num4 < num3; num4 += floatVal)
+					if (!hbsIME.IsMovementCandidateLocationReachable(unit, unit.BehaviorTree.movementCandidateLocations[i]))
 					{
-						hbsIME.WorkspacePushPathNodeAngle(pathNode, num + num4, unit.BehaviorTree.movementCandidateLocations[i].MoveType, null);
-						if (num4 > 0f)
+						continue;
+					}
+
+					MoveDestination moveDestination = unit.BehaviorTree.movementCandidateLocations[i];
+					PathNode pathNode = moveDestination.PathNode;
+					float num = PathingUtil.FloatAngleFrom8Angle(pathNode.Angle);
+					float num2 = 0f;
+					AbstractActor abstractActor = null;
+					MeleeMoveDestination meleeMoveDestination = moveDestination as MeleeMoveDestination;
+					if (meleeMoveDestination != null)
+					{
+						abstractActor = meleeMoveDestination.Target;
+					}
+
+					switch (unit.BehaviorTree.movementCandidateLocations[i].MoveType)
+					{
+						case MoveType.Walking:
+							num2 = unit.MaxWalkDistance;
+							break;
+						case MoveType.Sprinting:
+							num2 = unit.MaxSprintDistance;
+							break;
+						case MoveType.Backward:
+							num2 = unit.MaxBackwardDistance;
+							break;
+						case MoveType.Jumping:
+							{
+								Mech mech2 = unit as Mech;
+								if (mech2 != null)
+								{
+									num2 = mech2.JumpDistance;
+								}
+								break;
+							}
+						case MoveType.Melee:
+							{
+								Mech mech = unit as Mech;
+								if (mech != null)
+								{
+									num2 = mech.MaxMeleeEngageRangeDistance;
+								}
+								break;
+							}
+					}
+
+					float num3 = Mathf.Min(unit.Pathing.GetAngleAvailable(num2 - pathNode.CostToThisNode), 180f);
+					float floatVal = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_AngularSelectionResolution).FloatVal;
+					if (abstractActor == null)
+					{
+						for (float num4 = 0f; num4 < num3; num4 += floatVal)
 						{
-							hbsIME.WorkspacePushPathNodeAngle(pathNode, num - num4, unit.BehaviorTree.movementCandidateLocations[i].MoveType, null);
+							hbsIME.WorkspacePushPathNodeAngle(pathNode, num + num4, unit.BehaviorTree.movementCandidateLocations[i].MoveType, null);
+							if (num4 > 0f)
+							{
+								hbsIME.WorkspacePushPathNodeAngle(pathNode, num - num4, unit.BehaviorTree.movementCandidateLocations[i].MoveType, null);
+							}
 						}
 					}
+					else
+					{
+						hbsIME.WorkspacePushPathNodeAngle(pathNode, num, unit.BehaviorTree.movementCandidateLocations[i].MoveType, abstractActor);
+					}
 				}
-				else
-				{
-					hbsIME.WorkspacePushPathNodeAngle(pathNode, num, unit.BehaviorTree.movementCandidateLocations[i].MoveType, abstractActor);
-				}
+
 			}
+			catch (Exception e)
+            {
+				Mod.Log.Warn?.Write(e, "Failed to Eval_Initialize!");
+            }
+
 			yield return null;
 		}
 
@@ -229,6 +239,7 @@ namespace CleverGirl.InfluenceMap
 		// Factors based upon opposing units
 		private IEnumerable<Instruction> Eval_HostileFactors()
 		{
+
 			for (int i = 0; i < unit.BehaviorTree.enemyUnits.Count; i++)
 			{
 				(unit.BehaviorTree.enemyUnits[i] as AbstractActor)?.EvaluateExpectedArmor();
@@ -323,6 +334,7 @@ namespace CleverGirl.InfluenceMap
 		// Factors based upon our allies
 		private IEnumerable<Instruction> Eval_AllyFactors()
 		{
+
 			int intVal = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Int_AllyInfluenceCount).IntVal;
 			List<ICombatant> allies = getNClosestCombatants(unit.BehaviorTree.GetAllyUnits().ConvertAll((Converter<AbstractActor, ICombatant>)((AbstractActor X) => X)), intVal);
 			AIUtil.LogAI($"evaluating vs {allies.Count} allies");
@@ -396,6 +408,7 @@ namespace CleverGirl.InfluenceMap
 
 		private IEnumerable<Instruction> Apply_SprintScaling()
 		{
+
 			float sprintBiasMult = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_SprintWeightBiasMultiplicative).FloatVal;
 			float sprintBiasAdd = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_SprintWeightBiasAdditive).FloatVal;
 			float sprintHysteresisLevel = unit.BehaviorTree.GetSprintHysteresisLevel();

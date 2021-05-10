@@ -1,5 +1,6 @@
 ﻿using BattleTech;
 using Harmony;
+using IRBTModUtils.Extension;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,17 +21,25 @@ namespace CleverGirl.Helper
         public static BehaviorVariableValue GetBehaviorVariableValue(BehaviorTree bTree, BehaviorVariableName name)
         {
 
+            BehaviorVariableValue bhVarVal = null;
             if (ModState.RolePlayerBehaviorVarManager != null && ModState.RolePlayerGetBehaviorVar != null)
             {
                 // Ask RolePlayer for the variable
                 //getBehaviourVariable(AbstractActor actor, BehaviorVariableName name)
-                return (BehaviorVariableValue)ModState.RolePlayerGetBehaviorVar.Invoke(ModState.RolePlayerBehaviorVarManager, new object[] { bTree.unit, name });
+                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue from RolePlayer for unit: {bTree.unit.DistinctId()}.");
+                bhVarVal = (BehaviorVariableValue)ModState.RolePlayerGetBehaviorVar.Invoke(ModState.RolePlayerBehaviorVarManager, new object[] { bTree.unit, name });
             }
-            else
+
+            if (bhVarVal == null)
             {
-                // Read it directly
-                return GetBehaviorVariableValueDirectly(bTree, name);
+                // RolePlayer does not return the vanilla value if there's no configuration for the actor. We need to check that we're null here to trap that edge case.
+                // Also, if RolePlayer isn't configured we need to read the value. 
+                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue from Vanilla for unit: {bTree.unit.DistinctId()}.");
+                bhVarVal = GetBehaviorVariableValueDirectly(bTree, name);
             }
+
+            Mod.Log.Trace?.Write($"  Value is: {bhVarVal}");
+            return bhVarVal;
 
         }
 
