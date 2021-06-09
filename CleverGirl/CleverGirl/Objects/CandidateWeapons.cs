@@ -1,4 +1,6 @@
 ﻿using BattleTech;
+using CleverGirlAIDamagePrediction;
+using CustAmmoCategories;
 using System.Collections.Generic;
 
 namespace CleverGirl
@@ -61,7 +63,6 @@ namespace CleverGirl
                     // DFAWeapons.Add(cWeapon);
                 }
 
-                // Evaluate being able to hit the target
                 bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
                 bool withinRange = distance <= cWeapon.First.MaxRange;
                 Mod.Log.Debug?.Write($" -- willFireAtTarget: {willFireAtTarget}  withinRange: {withinRange}");
@@ -69,7 +70,7 @@ namespace CleverGirl
                 {
                     Mod.Log.Debug?.Write($" -- has LOF and is within range, adding to ranged set");
                     RangedWeapons.Add(cWeapon);
-                }                
+                }
 
             }
         }

@@ -20,7 +20,9 @@ namespace CleverGirl.Helper {
             bool isStationary, out BehaviorTreeResults order)
         {
             Mod.Log.Debug?.Write("");
-            Mod.Log.Debug?.Write($"Evaluating AttackOrder from ({attackerAA.DistinctId()}) against ({target.DistinctId()} at position: ({target.CurrentPosition})");
+            Mod.Log.Debug?.Write($"Evaluating AttackOrder isStationary: {isStationary} " +
+                $"from {attackerAA.DistinctId()} at pos: {attackerAA.CurrentPosition} rot: {attackerAA.CurrentRotation} " +
+                $"against {target.DistinctId()} at pos: {target.CurrentPosition} rot: {target.CurrentRotation}");
 
             // If the unit has no visibility to the target from the current position, they can't attack. Return immediately.
             if (!AIUtil.UnitHasVisibilityToTargetFromCurrentPosition(attackerAA, target))
