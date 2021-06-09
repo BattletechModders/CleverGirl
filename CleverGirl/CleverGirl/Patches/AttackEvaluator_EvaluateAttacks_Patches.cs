@@ -80,7 +80,8 @@ namespace CleverGirl.Patches {
                 if (oppTargAttackOrder != null && oppTargAttackOrder.orderInfo != null &&  
                     (exceedsOpportunityFireThreshold || exceedsFirepowerReductionThreshold)) {
                     Mod.Log.Debug?.Write(" Taking opportunity fire attack, instead of attacking designated target.");
-                    __result = oppTargAttackOrder;
+                    Mod.Log.Debug?.Write($"   Attack order type: {oppTargAttackOrder.orderInfo.OrderType} with debug: '{oppTargAttackOrder.debugOrderString}'");
+                    __result = oppTargAttackOrder;                    
                     return false;
                 }
             }

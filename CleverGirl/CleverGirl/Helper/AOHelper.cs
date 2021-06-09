@@ -282,34 +282,42 @@ namespace CleverGirl.Helper {
                     AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target)
                     {
                         Weapons = attackEvaluation2.WeaponList,
-                        TargetUnit = target
+                        TargetUnit = target,
+                        IsMelee = false,
+                        IsDeathFromAbove = false
                     };
                     AIUtil.AttackType attackType = attackEvaluation2.AttackType;
+                    Mod.Log.Debug?.Write($"Created attackOrderInfo with attackType: {attackType} vs. target: {target.DistinctId()}.  " +
+                        $"WeaponCount: {attackOrderInfo?.Weapons?.Count} IsMelee: {attackOrderInfo.IsMelee}  IsDeathFromAbove: {attackOrderInfo.IsDeathFromAbove}");
 
                     if (attackType == AIUtil.AttackType.DeathFromAbove)
                     {
                         attackOrderInfo.IsDeathFromAbove = true;
+                        attackOrderInfo.AttackFromLocation = bestDFAPosition;
+
                         attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
                         attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-                        attackOrderInfo.AttackFromLocation = bestDFAPosition;
+
                     }
                     else if (attackType == AIUtil.AttackType.Melee)
                     {
                         attackOrderInfo.IsMelee = true;
+                        attackOrderInfo.AttackFromLocation = bestMeleePosition;
+
                         attackOrderInfo.Weapons.Remove(attackerMech.MeleeWeapon);
                         attackOrderInfo.Weapons.Remove(attackerMech.DFAWeapon);
-
-                        attackOrderInfo.AttackFromLocation = bestMeleePosition;
                     }
 
                     behaviorTreeResults.orderInfo = attackOrderInfo;
                     behaviorTreeResults.debugOrderString = $" using attack type: {attackEvaluation2.AttackType} against: {target.DisplayName}";
 
-                    Mod.Log.Debug?.Write("attack order: " + behaviorTreeResults.debugOrderString);
+                    Mod.Log.Debug?.Write("Returning attack order " + behaviorTreeResults.debugOrderString);
                     order = behaviorTreeResults;
+                    Mod.Log.Debug?.Write($" ==== DONE Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
                     return attackEvaluation2.ExpectedDamage;
                 }
                 Mod.Log.Debug?.Write("Rejecting attack with no expected damage");
+                Mod.Log.Debug?.Write($" ==== DONE Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
             }
 
             Mod.Log.Debug?.Write("Could not build an AttackOrder with damage, returning a null order. Unit will likely brace.");

@@ -56,11 +56,7 @@ namespace CleverGirl {
                 ProfilePatches.PatchAllMethods(harmony);
             }
 
-            // Hack to disable CAC processing of AI
-            CustomAmmoCategories.DisableInternalWeaponChoose = true;
-
             harmony.PatchAll(asm);
-
         }
 
         // Invoked by ModTek once all other mods are finished loading
@@ -71,6 +67,9 @@ namespace CleverGirl {
 
             // Check for RolePlayer and use it's BehaviorVar link instead
             InitRoleplayerLink();
+
+            // Hack to disable CAC processing of AI
+            CustomAmmoCategories.DisableInternalWeaponChoose = true;
         }
 
         private static void InitRoleplayerLink()
