@@ -277,7 +277,7 @@ namespace CleverGirl {
 
                     if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
                     {
-                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, and jam x{weaponFirePredictedEffect.JammChance} of the time. Reducing EV by 1 - jammChance.");
+                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, reducing EV by 1 - {weaponFirePredictedEffect.JammChance}.");
                         dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
                     }
 

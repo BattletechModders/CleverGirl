@@ -1,8 +1,6 @@
 ﻿using BattleTech;
-using CBTBehaviorsEnhanced;
 using CBTBehaviorsEnhanced.Helper;
 using CBTBehaviorsEnhanced.MeleeStates;
-using CleverGirlAIDamagePrediction;
 using IRBTModUtils.Extension;
 using System.Collections.Generic;
 using System.Linq;
