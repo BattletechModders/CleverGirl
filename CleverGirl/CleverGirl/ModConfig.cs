@@ -1,4 +1,6 @@
 ﻿
+using System.Collections.Generic;
+
 namespace CleverGirl {
 
     public class ModConfig {
@@ -17,7 +19,7 @@ namespace CleverGirl {
             public float OneShotMinimumToHit = 0.4f;
         }
         public DecisionWeights Weights = new DecisionWeights();
-
+        public List<string> BlockedDlls = new List<string>();
         public void LogConfig() {
             Mod.Log.Info?.Write("=== MOD CONFIG BEGIN ===");
             Mod.Log.Info?.Write($" LOGGING -- Debug:{this.Debug} Trace:{this.Trace}");
