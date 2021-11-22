@@ -13,9 +13,11 @@ using System.Linq;
 using System.Reflection;
 using us.frostraptor.modUtils.logging;
 
-namespace CleverGirl {
+namespace CleverGirl
+{
 
-    public class Mod {
+    public class Mod
+    {
 
         public const string HarmonyPackage = "us.frostraptor.CleverGirl";
 
@@ -25,13 +27,17 @@ namespace CleverGirl {
 
         public static readonly Random Random = new Random();
 
-        public static void Init(string modDirectory, string settingsJSON) {
+        public static void Init(string modDirectory, string settingsJSON)
+        {
             ModDir = modDirectory;
 
             Exception settingsE;
-            try {
+            try
+            {
                 Mod.Config = JsonConvert.DeserializeObject<ModConfig>(settingsJSON);
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 settingsE = e;
                 Mod.Config = new ModConfig();
             }
@@ -52,7 +58,8 @@ namespace CleverGirl {
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
 
             // Patch for logging before all others as it's a non-interfering prefix
-            if (Mod.Config.Profile) {
+            if (Mod.Config.Profile)
+            {
                 ProfilePatches.PatchAllMethods(harmony);
             }
 
@@ -100,7 +107,7 @@ namespace CleverGirl {
 
                         // Find the method
                         ModState.RolePlayerGetBehaviorVar = managerType.GetMethod("getBehaviourVariable", new Type[] { typeof(AbstractActor), typeof(BehaviorVariableName) });
-                        
+
                         if (ModState.RolePlayerGetBehaviorVar != null)
                             Mod.Log.Info?.Write("  Successfully linked with RolePlayer");
                         else
@@ -151,40 +158,55 @@ namespace CleverGirl {
             }
             Mod.Log.Info?.Write($" -- Done checking for influence factors");
         }
-        private static bool CheckBlockList(Assembly assembly) {
-          foreach (string name in Mod.Config.BlockedDlls) { if (assembly.FullName.StartsWith(name)) { return true; } }
-          return false;
+
+        private static bool CheckBlockList(Assembly assembly)
+        {
+            foreach (string name in Mod.Config.BlockedDlls) { if (assembly.FullName.StartsWith(name)) { return true; } }
+            return false;
         }
+
         private static IEnumerable<Type> GetAllTypesThatImplementInterface<T>()
         {
             var targetType = typeof(T);
             List<Type> result = new List<Type>();
-            try { 
-              foreach(Assembly assembly in AppDomain.CurrentDomain.GetAssemblies()) {
-                if (CheckBlockList(assembly)) { continue; }
-                try {
-                  Type[] types = assembly.GetTypes();
-                  foreach(Type type in types) {
-                    try {
-                      if (type.IsInterface) { continue; }
-                      if (type.IsAbstract) { continue; }
-                      if (targetType.IsAssignableFrom(type) == false) { continue; }
-                      result.Add(type);
-                    }catch(Exception e) {
-                      Mod.Log.Error?.Write(assembly.FullName);
-                      Mod.Log.Error?.Write(type.FullName);
-                      Mod.Log.Error?.Write(e.ToString());
+            try
+            {
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (CheckBlockList(assembly)) { continue; }
+                    try
+                    {
+                        Type[] types = assembly.GetTypes();
+                        foreach (Type type in types)
+                        {
+                            try
+                            {
+                                if (type.IsInterface) { continue; }
+                                if (type.IsAbstract) { continue; }
+                                if (targetType.IsAssignableFrom(type) == false) { continue; }
+                                result.Add(type);
+                            }
+                            catch (Exception e)
+                            {
+                                Mod.Log.Error?.Write(assembly.FullName);
+                                Mod.Log.Error?.Write(type.FullName);
+                                Mod.Log.Error?.Write(e.ToString());
+                            }
+                        }
                     }
-                  }
-                }catch(Exception e) {
-                  Mod.Log.Error?.Write(assembly.FullName);
-                  Mod.Log.Error?.Write(e.ToString());
+                    catch (Exception e)
+                    {
+                        Mod.Log.Error?.Write(assembly.FullName);
+                        Mod.Log.Error?.Write(e.ToString());
+                    }
                 }
-              }
-            }catch(Exception e) {
-              Mod.Log.Error?.Write(e.ToString());
+            }
+            catch (Exception e)
+            {
+                Mod.Log.Error?.Write(e.ToString());
             }
             return result;
+
             //return AppDomain.CurrentDomain.GetAssemblies()
             //    .Where(a => !a.IsDynamic)
             //    .SelectMany(s => s.GetTypes())
