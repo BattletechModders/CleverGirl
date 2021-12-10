@@ -67,13 +67,21 @@ namespace CleverGirl
         }
 
         // Invoked by ModTek once all other mods are finished loading
-        public static void FinishedLoading()
+        public static void FinishedLoading(List<string> loadOrder)
         {
-            // Scan packages for instances of our interface
-            InitInfluenceMapFactors();
+            foreach (string name in loadOrder)
+            {
 
-            // Check for RolePlayer and use it's BehaviorVar link instead
-            InitRoleplayerLink();
+                if (name.Equals("IRBTModUtils", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    InitInfluenceMapFactors();
+                }
+
+                if (name.Equals("RolePlayer", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    InitRoleplayerLink();
+                }
+            }
 
             // Hack to disable CAC processing of AI
             CustomAmmoCategories.DisableInternalWeaponChoose = true;
@@ -126,92 +134,41 @@ namespace CleverGirl
         {
             Mod.Log.Info?.Write($"Checking for relevant types in all assemblies");
             // Record custom types from mods
-            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapAllyFactor>())
+            foreach (var factor in CustomFactors.GetCustomAllyFactors())
             {
-                Mod.Log.Info?.Write($"Adding ally factor: {type.FullName}");
-                CustomInfluenceMapAllyFactor instance = (CustomInfluenceMapAllyFactor)Activator.CreateInstance(type);
-                ModState.CustomAllyFactors.Add(instance);
+                Mod.Log.Info?.Write($"Adding ally factor: {factor.GetType().FullName}");
+                ModState.CustomAllyFactors.Add(factor);
             }
-
-            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapHostileFactor>())
+            foreach (var factor in CustomFactors.GetCustomHostileFactors())
             {
-                Mod.Log.Info?.Write($"Adding hostile factor: {type.FullName}");
-                CustomInfluenceMapHostileFactor instance = (CustomInfluenceMapHostileFactor)Activator.CreateInstance(type);
-                ModState.CustomHostileFactors.Add(instance);
+                Mod.Log.Info?.Write($"Adding hostile factor: {factor.GetType().FullName}");
+                ModState.CustomHostileFactors.Add(factor);
             }
-
-            foreach (var type in GetAllTypesThatImplementInterface<CustomInfluenceMapPositionFactor>())
+            foreach (var factor in CustomFactors.GetCustomPositionFactors())
             {
-                Mod.Log.Info?.Write($"Adding position factor: {type.FullName}");
-                CustomInfluenceMapPositionFactor instance = (CustomInfluenceMapPositionFactor)Activator.CreateInstance(type);
-                ModState.CustomPositionFactors.Add(instance);
+                Mod.Log.Info?.Write($"Adding position factor: {factor.GetType().FullName}");
+                ModState.CustomPositionFactors.Add(factor);
             }
 
             // Record removals from mods
-            foreach (var type in GetAllTypesThatImplementInterface<InfluenceMapFactorsToRemove>())
+            foreach (var factor in CustomFactors.GetRemovedAllyFactors())
             {
-                Mod.Log.Info?.Write($"Found factors to remove: {type.FullName}");
-                InfluenceMapFactorsToRemove factors = (InfluenceMapFactorsToRemove)Activator.CreateInstance(type);
-                ModState.AllyFactorsToRemove.AddRange(factors.AllyFactorsToRemove());
-                ModState.HostileFactorsToRemove.AddRange(factors.HostileFactorsToRemove());
-                ModState.PositionFactorsToRemove.AddRange(factors.PositionFactorsToRemove());
+                Mod.Log.Info?.Write($"Adding ally factor: {factor.GetType().FullName}");
+                ModState.AllyFactorsToRemove.Add(factor);
             }
+            foreach (var factor in CustomFactors.GetRemovedHostileFactors())
+            {
+                Mod.Log.Info?.Write($"Adding hostile factor: {factor.GetType().FullName}");
+                ModState.HostileFactorsToRemove.Add(factor);
+            }
+            foreach (var factor in CustomFactors.GetRemovedPositionFactors())
+            {
+                Mod.Log.Info?.Write($"Adding position factor: {factor.GetType().FullName}");
+                ModState.PositionFactorsToRemove.Add(factor);
+            }
+
             Mod.Log.Info?.Write($" -- Done checking for influence factors");
         }
 
-        private static bool CheckBlockList(Assembly assembly)
-        {
-            foreach (string name in Mod.Config.BlockedDlls) { if (assembly.FullName.StartsWith(name)) { return true; } }
-            return false;
-        }
-
-        private static IEnumerable<Type> GetAllTypesThatImplementInterface<T>()
-        {
-            var targetType = typeof(T);
-            List<Type> result = new List<Type>();
-            try
-            {
-                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (CheckBlockList(assembly)) { continue; }
-                    try
-                    {
-                        Type[] types = assembly.GetTypes();
-                        foreach (Type type in types)
-                        {
-                            try
-                            {
-                                if (type.IsInterface) { continue; }
-                                if (type.IsAbstract) { continue; }
-                                if (targetType.IsAssignableFrom(type) == false) { continue; }
-                                result.Add(type);
-                            }
-                            catch (Exception e)
-                            {
-                                Mod.Log.Error?.Write(assembly.FullName);
-                                Mod.Log.Error?.Write(type.FullName);
-                                Mod.Log.Error?.Write(e.ToString());
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Mod.Log.Error?.Write(assembly.FullName);
-                        Mod.Log.Error?.Write(e.ToString());
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Mod.Log.Error?.Write(e.ToString());
-            }
-            return result;
-
-            //return AppDomain.CurrentDomain.GetAssemblies()
-            //    .Where(a => !a.IsDynamic)
-            //    .SelectMany(s => s.GetTypes())
-            //    .Where(p => !p.IsInterface && !p.IsAbstract)
-            //    .Where(p => targetType.IsAssignableFrom(p));
-        }
     }
 }
