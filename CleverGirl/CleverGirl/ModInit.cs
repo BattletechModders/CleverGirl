@@ -153,17 +153,17 @@ namespace CleverGirl
             // Record removals from mods
             foreach (var factor in CustomFactors.GetRemovedAllyFactors())
             {
-                Mod.Log.Info?.Write($"Adding ally factor: {factor.GetType().FullName}");
+                Mod.Log.Info?.Write($"Removing ally factor: {factor.GetType().FullName}");
                 ModState.AllyFactorsToRemove.Add(factor);
             }
             foreach (var factor in CustomFactors.GetRemovedHostileFactors())
             {
-                Mod.Log.Info?.Write($"Adding hostile factor: {factor.GetType().FullName}");
+                Mod.Log.Info?.Write($"Removing hostile factor: {factor.GetType().FullName}");
                 ModState.HostileFactorsToRemove.Add(factor);
             }
             foreach (var factor in CustomFactors.GetRemovedPositionFactors())
             {
-                Mod.Log.Info?.Write($"Adding position factor: {factor.GetType().FullName}");
+                Mod.Log.Info?.Write($"Removing position factor: {factor.GetType().FullName}");
                 ModState.PositionFactorsToRemove.Add(factor);
             }
 

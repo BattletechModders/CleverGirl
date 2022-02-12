@@ -4,20 +4,19 @@ using IRBTModUtils.Extension;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-using us.frostraptor.modUtils;
 
 namespace CleverGirl.Patches {
 
     [HarmonyPatch]
-    public static class GenerateJumpMoveCandidatesNode_Tick_Patch {
+    static class GenerateJumpMoveCandidatesNode_Tick {
 
-        public static MethodBase TargetMethod() {
+        static MethodBase TargetMethod() {
             var type = AccessTools.TypeByName("GenerateJumpMoveCandidatesNode");
             return AccessTools.Method(type, "Tick");
         }
 
         // Duplication of HBS code, avoiding prefix=true for now.
-        public static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit) {
+        static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit) {
             Mod.Log.Trace?.Write("CJMCN:T - entered");
 
             Mech mech = ___unit as Mech;

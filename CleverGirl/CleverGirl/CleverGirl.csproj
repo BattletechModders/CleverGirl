@@ -91,6 +91,7 @@
     <Compile Include="Objects\CandidateWeapons.cs" />
     <Compile Include="Objects\CleverGirlComponent.cs" />
     <Compile Include="Objects\CondensedWeapon.cs" />
+    <Compile Include="Patches\BehaviorNodes\MoveTowardsHighestPriorityMoveCandidateNodePatch.cs" />
     <Compile Include="Patches\InfluenceMapEvaluatorPatches.cs" />
     <Compile Include="Patches\AITeamPatches.cs" />
     <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
