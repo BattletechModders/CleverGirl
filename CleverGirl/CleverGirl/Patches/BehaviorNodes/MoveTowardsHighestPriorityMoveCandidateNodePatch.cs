@@ -24,11 +24,9 @@ namespace CleverGirl.Patches.BehaviorNodes
 
 		static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit, bool ___useSprintJuice)
         {
-			if (__result == null || __result.orderInfo is MovementOrderInfo) return; // Nothing to do
+			if (__result == null || !(__result.orderInfo is AttackOrderInfo)) return; // Nothing to do
 			
-			AttackOrderInfo attackOrderInfo = (AttackOrderInfo)__result.orderInfo;
-
-			Mod.Log.Info?.Write($"MoveTowardsHighestPriorityMoveCandidateNode generated an AttackOrder for unit: {___unit.DistinctId()}, without evaluating options!");
+			Mod.Log.Info?.Write($"MoveTowardsHighestPriorityMoveCandidateNode generated an AttackOrder for unit: {___unit.DistinctId()}, without evaluating CBTBE options!");
 			Mod.Log.Info?.Write($"  Disabling the attack but leaving the move oder intact.");
 
 			// Recalculate the best movement type
