@@ -31,28 +31,32 @@ namespace CleverGirl.Patches {
             AEHelper.InitializeAttackOrderDecisionData(unit);
             
             Mod.Log.Debug?.Write($" == Evaluating attack from unit: {unit.DistinctId()} at pos: {unit.CurrentPosition} against {unit.BehaviorTree.enemyUnits.Count} enemies.");
-            BehaviorTreeResults behaviorTreeResults = null;
-            AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
+
+            float bestTargDamage = 0f;
+            float bestTargFirepowerReduction = 0f;
 
             Mod.Log.Debug?.Write(" === BEGIN DESIGNATED TARGET FIRE CHECKS ===");
-            float desTargDamage = 0f;
-            float desTargFirepowerReduction = 0f;
+
+            BehaviorTreeResults behaviorTreeResults = null;
+            AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
+            float behavior1 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
+            float behavior2 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
+
+            float opportunityFireTakeawayThreshold = 1f + (behavior2 / 100f);
+            float opportunityFireThreshold = 1f + (behavior1 / 100f);
+
+            Mod.Log.Info?.Write($"  Opportunity Fire damageThreshold: {opportunityFireThreshold}  takeawayThreshold: {opportunityFireTakeawayThreshold}");
+
             if (designatedTarget != null) {
-                desTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out behaviorTreeResults);
-                desTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, designatedTarget, designatedTarget.CurrentPosition, designatedTarget.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
-                Mod.Log.Debug?.Write($"  DesignatedTarget: {designatedTarget.DistinctId()} will suffer: {desTargDamage} damage and lose: {desTargFirepowerReduction} firepower from attack.");
+                bestTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out behaviorTreeResults) * opportunityFireThreshold;
+                bestTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, designatedTarget, designatedTarget.CurrentPosition, designatedTarget.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet) * opportunityFireTakeawayThreshold;
+                Mod.Log.Debug?.Write($"  DesignatedTarget: {designatedTarget.DistinctId()} will suffer: {bestTargDamage} damage and lose: {bestTargFirepowerReduction} firepower from attack.");
             } else {
                 Mod.Log.Debug?.Write("  No designated target identified.");
             }
+
             Mod.Log.Debug?.Write(" === END DESIGNATED TARGET FIRE CHECKS ===");
-
             Mod.Log.Debug?.Write(" === BEGIN OPPORTUNITY FIRE CHECKS ===");
-            float behavior1 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
-            float opportunityFireThreshold = 1f + (behavior1 / 100f);
-
-            float behavior2 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
-            float opportunityFireTakeawayThreshold = 1f + (behavior2 / 100f);
-            Mod.Log.Info?.Write($"  Opportunity Fire damageThreshold: {opportunityFireThreshold}  takeawayThreshold: {opportunityFireTakeawayThreshold}");
 
             // Walk through every alive enemy, and see if a better shot presents itself.
             for (int j = 0; j < unit.BehaviorTree.enemyUnits.Count; j++) {
@@ -71,26 +75,27 @@ namespace CleverGirl.Patches {
                 // TODO: Was where opportunity cost from evasion strip was added to target damage.
                 //  Reintroduce utility damage to this calculation
 
-                bool exceedsOpportunityFireThreshold = oppTargDamage > desTargDamage * opportunityFireThreshold;
-                Mod.Log.Debug?.Write($"  Comparing damage - opportunity: {oppTargDamage} > designated: {designatedTarget} * threshold: {opportunityFireThreshold}");
-                bool exceedsFirepowerReductionThreshold = oppTargFirepowerReduction > desTargFirepowerReduction * opportunityFireTakeawayThreshold;
-                Mod.Log.Debug?.Write($"  Comparing firepower reduction - opportunity: {oppTargFirepowerReduction} vs. designated: {desTargFirepowerReduction} * threshold: {1f + opportunityFireTakeawayThreshold}");
+                bool isBetterTargetDamage = oppTargDamage > bestTargDamage;
+                Mod.Log.Debug?.Write($"  Comparing damage - opportunity: {oppTargDamage} > best: {bestTargDamage}");
+                bool isBetterOrEqualFirepowerReduction = oppTargFirepowerReduction >= bestTargFirepowerReduction;
+                Mod.Log.Debug?.Write($"  Comparing firepower reduction - opportunity: {oppTargFirepowerReduction} >= best: {bestTargFirepowerReduction}");
 
-                // TODO: Short circuit here - takes the first result, instead of the best result. Should we fix this?
-                if (oppTargAttackOrder != null && oppTargAttackOrder.orderInfo != null &&  
-                    (exceedsOpportunityFireThreshold || exceedsFirepowerReductionThreshold)) {
-                    Mod.Log.Debug?.Write(" Taking opportunity fire attack, instead of attacking designated target.");
+                if (oppTargAttackOrder != null && oppTargAttackOrder.orderInfo != null && isBetterTargetDamage && isBetterOrEqualFirepowerReduction) {
+                    Mod.Log.Debug?.Write("  Opportunity attack is better than any previous option considered.");
                     Mod.Log.Debug?.Write($"   Attack order type: {oppTargAttackOrder.orderInfo.OrderType} with debug: '{oppTargAttackOrder.debugOrderString}'");
-                    __result = oppTargAttackOrder;                    
-                    return false;
+
+                    bestTargDamage = oppTargDamage;
+                    bestTargFirepowerReduction = oppTargFirepowerReduction;
+                    __result = oppTargAttackOrder;
                 }
             }
             Mod.Log.Debug?.Write(" === END OPPORTUNITY FIRE CHECKS ===");
 
-            if (behaviorTreeResults != null && behaviorTreeResults.orderInfo != null) {
+            if (__result != null && bestTargDamage > 0) {
                 Mod.Log.Debug?.Write("Successfuly calculated attack order");
-                unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking designated target. Success");
-                __result = behaviorTreeResults;
+                Mod.Log.Debug?.Write(__result.debugOrderString);
+                Mod.Log.Debug?.Write(__result.behaviorTrace);
+                unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking target. Success");
                 return false;
             }
 
