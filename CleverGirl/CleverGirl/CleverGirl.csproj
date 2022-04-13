@@ -35,35 +35,35 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\0Harmony.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Assembly-CSharp.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
     <Reference Include="BattleTech.Common">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
     </Reference>
     <Reference Include="CBTBehaviorsEnhanced">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CBTBehaviorsEnhanced\CBTBehaviorsEnhanced.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\CBTBehaviorsEnhanced\CBTBehaviorsEnhanced.dll</HintPath>
     </Reference>
     <Reference Include="CustomAmmoCategories">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
     </Reference>
     <Reference Include="CustomComponents">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomComponents\CustomComponents.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\CustomComponents\CustomComponents.dll</HintPath>
     </Reference>
     <Reference Include="IRBTModUtils, Version=1.7.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -73,10 +73,10 @@
     <Reference Include="System.Xml" />
     <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -103,22 +103,19 @@
   </ItemGroup>
   <ItemGroup Condition="$(DefineConstants.Contains('USE_CAC'))">
     <Reference Include="CustomAmmoCategories">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup Condition="$(DefineConstants.Contains('USE_CC'))">
     <Reference Include="CustomComponents">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomComponents\CustomComponents.dll</HintPath>
+      <HintPath>$(BattleTechGameDir)\Mods\CustomComponents\CustomComponents.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>if exist "$(BattleTechGame)\Mods\CleverGirl" (
-time /t
-xcopy "$(TargetDir)$(TargetFileName)" "$(BattleTechGame)\Mods\CleverGirl" /y
-)</PostBuildEvent>
-  </PropertyGroup>
+  <Target Name="AfterBuild">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods\CleverGirl" OverwriteReadOnlyFiles="true" SkipUnchangedFiles="false" />
+  </Target>
 </Project>
