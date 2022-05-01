@@ -161,14 +161,15 @@ namespace CleverGirl.InfluenceMap
 
 				float regularWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
 				float sprintWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
-				if (factor is CustomInfluenceMapPositionFactor customFactor)
+                CustomInfluenceMapPositionFactor customFactor = factor as CustomInfluenceMapPositionFactor;
+				if (customFactor != null)
 				{
 					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
 					regularWeight = customFactor.GetRegularMoveWeight(unit);
 					sprintWeight = customFactor.GetSprintMoveWeight(unit);
 				}
 
-				int num;
+                int num;
 				if (regularWeight != 0f && sprintWeight != 0f)
 				{
 					float minValue = float.MaxValue;
@@ -219,8 +220,15 @@ namespace CleverGirl.InfluenceMap
 						{
 							WorkspaceEvaluationEntry workspaceEvaluationEntry2 = hbsIME.WorkspaceEvaluationEntries[workspaceIndex];
 							float factorValue = workspaceEvaluationEntry2.FactorValue;
-							float num2 = (factorValue - minValue) / (maxValue - minValue);
-							float num3 = num2 * regularWeight;
+                            float num2 = (factorValue - minValue) / (maxValue - minValue);
+							if (customFactor != null)
+                            {
+                                if (customFactor.IgnoreFactorNormalization)
+                                {
+                                    num2 = factorValue;
+                                }
+                            }
+                            float num3 = num2 * regularWeight;
 							float num4 = num2 * sprintWeight;
 							workspaceEvaluationEntry2.ValuesByFactorName[factor.GetRegularMoveWeightBVName().ToString()] = new EvaluationDebugLogRecord(factorValue, num2, num3, regularWeight, num4, sprintWeight);
 							hbsIME.WorkspaceEvaluationEntries[workspaceIndex].RegularMoveAccumulator += num3;
@@ -268,14 +276,15 @@ namespace CleverGirl.InfluenceMap
 
 				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
 				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
-				if (factor is CustomInfluenceMapHostileFactor customFactor)
+                CustomInfluenceMapHostileFactor customFactor = factor as CustomInfluenceMapHostileFactor;
+				if (customFactor != null)
 				{
 					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
 					regularMoveWeight = customFactor.GetRegularMoveWeight(unit);
 					sprintMoveWeight = customFactor.GetSprintMoveWeight(unit);
 				}
 
-				int num2;
+                int num2;
 				if (regularMoveWeight != 0f && sprintMoveWeight != 0f)
 				{
 					float minValue = float.MaxValue;
@@ -314,8 +323,15 @@ namespace CleverGirl.InfluenceMap
 						for (int workspaceIndex2 = 0; workspaceIndex2 < hbsIME.firstFreeWorkspaceEvaluationEntryIndex; workspaceIndex2 = num2)
 						{
 							float factorValue = hbsIME.WorkspaceEvaluationEntries[workspaceIndex2].FactorValue;
-							float num3 = (factorValue - minValue) / (maxValue - minValue);
-							float num4 = num3 * regularMoveWeight;
+                            float num3 = (factorValue - minValue) / (maxValue - minValue);
+							if (customFactor != null)
+                            {
+                                if (customFactor.IgnoreFactorNormalization)
+                                {
+                                    num3 = factorValue;
+                                }
+                            }
+                            float num4 = num3 * regularMoveWeight;
 							float num5 = num3 * sprintMoveWeight;
 							hbsIME.WorkspaceEvaluationEntries[workspaceIndex2].RegularMoveAccumulator += num4;
 							hbsIME.WorkspaceEvaluationEntries[workspaceIndex2].SprintMoveAccumulator += num5;
@@ -351,14 +367,15 @@ namespace CleverGirl.InfluenceMap
 
 				float regularMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetRegularMoveWeightBVName()).FloatVal;
 				float sprintMoveWeight = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, factor.GetSprintMoveWeightBVName()).FloatVal;
-				if (factor is CustomInfluenceMapAllyFactor customFactor)
+                CustomInfluenceMapAllyFactor customFactor = factor as CustomInfluenceMapAllyFactor;
+				if (customFactor != null)
 				{
 					Mod.Log.Info?.Write($"Fetching weights for custom factor: {customFactor.Name}");
 					regularMoveWeight = customFactor.GetRegularMoveWeight(unit);
 					sprintMoveWeight = customFactor.GetSprintMoveWeight(unit);
 				}
 
-				int num2;
+                int num2;
 				if (regularMoveWeight != 0f || sprintMoveWeight != 0f)
 				{
 					float minValue = float.MaxValue;
@@ -392,6 +409,13 @@ namespace CleverGirl.InfluenceMap
 						{
 							float factorValue = hbsIME.WorkspaceEvaluationEntries[j].FactorValue;
 							float num3 = (factorValue - minValue) / (maxValue - minValue);
+                            if (customFactor != null)
+                            {
+                                if (customFactor.IgnoreFactorNormalization)
+                                {
+                                    num3 = factorValue;
+                                }
+                            }
 							float num4 = num3 * regularMoveWeight;
 							float num5 = num3 * sprintMoveWeight;
 							hbsIME.WorkspaceEvaluationEntries[j].RegularMoveAccumulator += num4;
