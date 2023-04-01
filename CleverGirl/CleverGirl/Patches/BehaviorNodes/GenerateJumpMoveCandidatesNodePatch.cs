@@ -1,8 +1,4 @@
-﻿using BattleTech;
-using Harmony;
-using IRBTModUtils.Extension;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using System.Reflection;
 using UnityEngine;
 
 namespace CleverGirl.Patches {
@@ -16,6 +12,7 @@ namespace CleverGirl.Patches {
         }
 
         // Duplication of HBS code, avoiding prefix=true for now.
+        [HarmonyPostfix]
         static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit) {
             Mod.Log.Trace?.Write("CJMCN:T - entered");
 

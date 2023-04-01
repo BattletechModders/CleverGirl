@@ -1,121 +1,89 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Target Name="ValidateBattleTechGameDir" Condition="'$(BattleTechGameDir)' == '' Or !Exists('$(BattleTechGameDir)')">
+    <Error Text="BattleTechGameDir variable not set properly" />
+  </Target>
+
+  <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\Core\CleverGirl')">
+    <!-- Modpack -->
+    <DeployedModPath>$(BattleTechGameDir)\Mods\Core\CleverGirl</DeployedModPath>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\CleverGirl')">
+    <!-- flat dir -->
+    <DeployedModPath>$(BattleTechGameDir)\Mods\CleverGirl</DeployedModPath>
+  </PropertyGroup>
+  
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{961D1A37-7133-4B94-BDB1-CCA0FD315F03}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CleverGirl</RootNamespace>
-    <AssemblyName>CleverGirl</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
+    <TargetFramework>net472</TargetFramework>
+    <AssemblySearchPaths>
+			$(ReferencePath);
+			{HintPathFromItem};
+			$(BattleTechGameDir)\BattleTech_Data\Managed
+		</AssemblySearchPaths>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <DebugType>none</DebugType>
+    <AssemblyTitle>CleverGirl</AssemblyTitle>
+    <Product>CleverGirl</Product>
+    <Copyright>Copyright © 2023</Copyright>
+    <AssemblyVersion>0.7.0.0</AssemblyVersion>
+    <FileVersion>0.7.0.0</FileVersion>
+    <ProductVersion>0.7.0.0</ProductVersion>
+    <LangVersion>11</LangVersion>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
+    
+  <Target Name="AfterBuildMigrated" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods\Core\CleverGirl" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods\Core\CleverGirl')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods_CBDE\Core\CleverGirl" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods_CBDE\Core\CleverGirl')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RogueTechRepo)\Core\CleverGirl" Condition="'$(RogueTechRepo)' != '' And Exists('$(RogueTechRepo)\Core\CleverGirl')" />
+  </Target>
+  
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\0Harmony.dll</HintPath>
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.0" />
+  </ItemGroup>
+  
+  <ItemGroup>
+	<PackageReference Include="HarmonyX" Version="2.10.1">
+	  <PrivateAssets>all</PrivateAssets>
+	  <ExcludeAssets>runtime</ExcludeAssets>
+	</PackageReference>
+	
+    <Reference Include="Assembly-CSharp">
+      <Private>False</Private>
     </Reference>
-    <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Assembly-CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-    </Reference>
-    <Reference Include="BattleTech.Common">
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\BattleTech.Common.dll</HintPath>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <Private>False</Private>
     </Reference>
     <Reference Include="CBTBehaviorsEnhanced">
-      <HintPath>$(BattleTechGameDir)\Mods\CBTBehaviorsEnhanced\CBTBehaviorsEnhanced.dll</HintPath>
+      <HintPath>$(DeployedModPath)\..\CBTBehaviorsEnhanced\CBTBehaviorsEnhanced.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="CustomAmmoCategories">
-      <HintPath>$(BattleTechGameDir)\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
+      <HintPath>$(DeployedModPath)\..\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="CustomComponents">
-      <HintPath>$(BattleTechGameDir)\Mods\CustomComponents\CustomComponents.dll</HintPath>
+      <HintPath>$(DeployedModPath)\..\CustomComponents\CustomComponents.dll</HintPath>
+      <Private>False</Private>
     </Reference>
-    <Reference Include="IRBTModUtils, Version=1.7.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BattleTechGameDir)\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
+    <Reference Include="IRBTModUtils">
+      <HintPath>$(DeployedModPath)\..\IRBTModUtils\IRBTModUtils.dll</HintPath>
+      <Private>False</Private>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json">
+      <Private>False</Private>
     </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
-    <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\UnityEngine.dll</HintPath>
+    <Reference Include="System">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Core">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(BattleTechGameDir)\BattleTech_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Analytics\CombatantAnalytics.cs" />
-    <Compile Include="Helper\AOHelper.cs" />
-    <Compile Include="Helper\BehaviorHelper.cs" />
-    <Compile Include="InfluenceMap\CompoundInfluenceMapEvaluator.cs" />
-    <Compile Include="ModConsts.cs" />
-    <Compile Include="ModInit.cs" />
-    <Compile Include="Helper\AIHelper.cs" />
-    <Compile Include="Helper\AEHelper.cs" />
-    <Compile Include="Objects\CandidateWeapons.cs" />
-    <Compile Include="Objects\CleverGirlComponent.cs" />
-    <Compile Include="Objects\CondensedWeapon.cs" />
-    <Compile Include="Patches\BehaviorNodes\MoveTowardsHighestPriorityMoveCandidateNodePatch.cs" />
-    <Compile Include="Patches\InfluenceMapEvaluatorPatches.cs" />
-    <Compile Include="Patches\AITeamPatches.cs" />
-    <Compile Include="Patches\AttackEvaluator_EvaluateAttacks_Patches.cs" />
-    <Compile Include="Patches\BehaviorNodes\GenerateJumpMoveCandidatesNodePatch.cs" />
-    <Compile Include="Patches\ProfilePatches.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ModConfig.cs" />
-    <Compile Include="ModState.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="$(DefineConstants.Contains('USE_CAC'))">
-    <Reference Include="CustomAmmoCategories">
-      <HintPath>$(BattleTechGameDir)\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
-  <ItemGroup Condition="$(DefineConstants.Contains('USE_CC'))">
-    <Reference Include="CustomComponents">
-      <HintPath>$(BattleTechGameDir)\Mods\CustomComponents\CustomComponents.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup />
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="AfterBuild">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods\CleverGirl" OverwriteReadOnlyFiles="true" SkipUnchangedFiles="false" />
-  </Target>
 </Project>

@@ -1,25 +1,17 @@
-﻿using BattleTech;
-using CleverGirl.InfluenceMap;
+﻿using CleverGirl.InfluenceMap;
 using GraphCoroutines;
-using Harmony;
-using IRBTModUtils.Extension;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using UnityEngine;
-using us.frostraptor.modUtils;
 
 namespace CleverGirl.Patches
 {
     // Replace the default InfluenceMapEvaluator to allow influenceFactors to be printed out for testing purposes
 
-	[HarmonyPatch(typeof(InfluenceMapEvaluator), MethodType.Constructor)]
+    [HarmonyPatch(typeof(InfluenceMapEvaluator), MethodType.Constructor)]
 	static class InfluenceMapEvaluator_ctor
     {
-		// Add custom 
-		static void Postfix(InfluenceMapEvaluator __instance, ref InfluenceMapAllyFactor[] ___allyFactors, 
+        // Add custom 
+        [HarmonyPostfix]
+        static void Postfix(InfluenceMapEvaluator __instance, ref InfluenceMapAllyFactor[] ___allyFactors, 
 			ref InfluenceMapHostileFactor[] ___hostileFactors, ref InfluenceMapPositionFactor[] ___positionalFactors,
 			ref PreferHigherExpectedDamageToHostileFactor ___expectedDamageFactor)
         {
@@ -46,10 +38,12 @@ namespace CleverGirl.Patches
 	[HarmonyBefore("io.github.mpstark.AIToolkit")]
 	static class InfluenceMapEvaluator_RunEvaluationForSeconds
     {
-
-        static bool Prefix(InfluenceMapEvaluator __instance, float seconds, ref bool __result, 
+        [HarmonyPrefix]
+        static void Prefix(ref bool __runOriginal, InfluenceMapEvaluator __instance, float seconds, ref bool __result, 
 			ref GraphCoroutine ___evaluationCoroutine, bool ___evaluationComplete)
         {
+			if (!__runOriginal) return;
+
             Mod.Log.Trace?.Write("AIU:CDT:Post");
 
 			float realtimeSinceStartup = Time.realtimeSinceStartup;
@@ -71,7 +65,7 @@ namespace CleverGirl.Patches
 			}
 			__result = ___evaluationComplete;
 
-			return false;
+			__runOriginal = false;
         }
     }
 }

@@ -1,30 +1,31 @@
-﻿using BattleTech;
-using CleverGirl.Helper;
-using Harmony;
-using IRBTModUtils.Extension;
-using System;
-using us.frostraptor.modUtils;
-using static AttackEvaluator;
+﻿using CleverGirl.Helper;
 
-namespace CleverGirl.Patches {
+namespace CleverGirl.Patches
+{
 
     [HarmonyPatch(typeof(AttackEvaluator), "MakeAttackOrder")]
     [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrder {
         // WARNING: Replaces the existing logic 
         // isStationary here represents the attacker, not the target
-        public static bool Prefix(AbstractActor unit, bool isStationary, ref BehaviorTreeResults __result) {
+
+        [HarmonyPrefix]
+        public static void Prefix(ref bool __runOriginal, AbstractActor unit, bool isStationary, ref BehaviorTreeResults __result) {
+            if (!__runOriginal) return;
+
             // If there is no unit, exit immediately
             if (unit == null) {
                 __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
-                return false;
+                __runOriginal = false;
+                return;
             }
 
             // If there are no enemies, exit immediately
             if (unit.BehaviorTree.enemyUnits.Count == 0) {
                 Mod.Log.Info?.Write("No important enemy units, skipping decision making.");
                 __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
-                return false;
+                __runOriginal = false;
+                return;
             }
 
             // Initialize decision data caches
@@ -96,13 +97,17 @@ namespace CleverGirl.Patches {
                 Mod.Log.Debug?.Write(__result.debugOrderString);
                 Mod.Log.Debug?.Write(__result.behaviorTrace);
                 unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking target. Success");
-                return false;
+                __runOriginal = false;
+                return;
+
             }
 
             Mod.Log.Debug?.Write("Could not calculate reasonable attacks. Skipping node.");
             __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
 
-            return false;
+            __runOriginal = false;
+            return;
+
         }
     }
 
@@ -110,7 +115,8 @@ namespace CleverGirl.Patches {
     [HarmonyAfter("io.mission.modrepuation")]
     public static class AttackEvaluator_MakeAttackOrderForTarget {
 
-        public static bool Prefix(AbstractActor unit, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order, ref float __result) {
+        [HarmonyPrefix]
+        public static void Prefix(ref bool __runOriginal, AbstractActor unit, ICombatant target, int enemyUnitIndex, bool isStationary, out BehaviorTreeResults order, ref float __result) {
 
             try {
                 Mod.Log.Trace?.Write("AE:MAOFT entered.");
@@ -123,10 +129,14 @@ namespace CleverGirl.Patches {
                 Mod.Log.Error?.Write($"  Source:{e.Source}  StackTrace:{e.StackTrace}");
 
                 order = null;
-                return true;
+                __runOriginal = true;
+                return;
+
             }
 
-            return false;
+            __runOriginal = false;
+            return;
+
         }
     }
 

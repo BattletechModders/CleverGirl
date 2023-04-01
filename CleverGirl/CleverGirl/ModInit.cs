@@ -1,17 +1,9 @@
-﻿using BattleTech;
-using CleverGirl.InfluenceMap;
-using CleverGirl.Patches;
-using CustAmmoCategories;
-using Harmony;
+﻿using CustAmmoCategories;
 using IRBTModUtils.CustomInfluenceMap;
 using IRBTModUtils.Logging;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using us.frostraptor.modUtils.logging;
 
 namespace CleverGirl
 {
@@ -52,18 +44,10 @@ namespace CleverGirl
             Log.Debug?.Write($"mod.json settings are:({settingsJSON})");
             Mod.Config.LogConfig();
 
-            var harmony = HarmonyInstance.Create(HarmonyPackage);
-
             // Initialize custom components
             CustomComponents.Registry.RegisterSimpleCustomComponents(Assembly.GetExecutingAssembly());
 
-            // Patch for logging before all others as it's a non-interfering prefix
-            if (Mod.Config.Profile)
-            {
-                ProfilePatches.PatchAllMethods(harmony);
-            }
-
-            harmony.PatchAll(asm);
+            Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), HarmonyPackage);
         }
 
         // Invoked by ModTek once all other mods are finished loading

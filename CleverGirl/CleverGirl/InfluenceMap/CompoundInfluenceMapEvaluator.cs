@@ -1,13 +1,6 @@
-﻿using BattleTech;
-using CleverGirl.Helper;
+﻿using CleverGirl.Helper;
 using GraphCoroutines;
-using Harmony;
 using IRBTModUtils.CustomInfluenceMap;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using UnityEngine;
 
 namespace CleverGirl.InfluenceMap

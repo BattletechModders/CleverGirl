@@ -1,13 +1,4 @@
-﻿using BattleTech;
-using Harmony;
-using IRBTModUtils.Extension;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CleverGirl.Helper
+﻿namespace CleverGirl.Helper
 {
     public static class BehaviorHelper
     {
