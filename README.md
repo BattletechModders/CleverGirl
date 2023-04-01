@@ -59,3 +59,23 @@ I bet that's it, yeah.`
 * Calculate melee retaliation properly 
 * Prevent melee from light units that won't benefit
 * Incorporate CAC AoE and inferno effects
+
+## Dev Notes
+
+AI logic invoked by AITeam.TurnActorProcessActivation
+
+* Checks for opfor reservation
+* Checks for reservation pre-reqs
+* Assignes role to unit
+
+AITeam.OnUpdate() -> AITeam.think()
+
+Sequence starts at ShootAtHighestPriorityEnemyNode:Tick() ExecuteStationaryAttackNode.Tick(). Both invoke AttackEvaluator.MakeAttackOrder() 
+
+* Iterates over designed targets for lance, making an attack order for the target. Evaluates the firepower reduction from the attack
+* Then iterates over every enemy unit that's not dead, and is an abstract actor. MakesAnAttack order, and evals firepower reduction from attack.
+** For each target, evaluates additional damage from friends attacking an evasive target (because of evasion strip)
+** If damage is greater than BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage, chooses opportunity fire
+*** If opportunity fire, tries to create a MultiTargetAttackOrder if possible.
+
+MakeAttackOrder invokes MakeAttackOrderForTarget, and evaluates FirepowerReduction from attack. MakeAttackOrderForTarget is only ever invoked by AttackEvalutor.MakeAttackOder
