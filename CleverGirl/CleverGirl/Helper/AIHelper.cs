@@ -2,6 +2,8 @@
 using CleverGirl.Helper;
 using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CleverGirl {

@@ -1,4 +1,6 @@
-﻿namespace CleverGirl.Patches
+﻿using System.Collections.Generic;
+
+namespace CleverGirl.Patches
 {
 
     /*

@@ -1,5 +1,6 @@
 ﻿using CleverGirl.InfluenceMap;
 using GraphCoroutines;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CleverGirl.Patches
