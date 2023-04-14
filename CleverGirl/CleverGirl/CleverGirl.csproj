@@ -3,12 +3,11 @@
   <Target Name="ValidateBattleTechGameDir" Condition="'$(BattleTechGameDir)' == '' Or !Exists('$(BattleTechGameDir)')">
     <Error Text="BattleTechGameDir variable not set properly" />
   </Target>
-
+  
   <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\Core\CleverGirl')">
     <!-- Modpack -->
     <DeployedModPath>$(BattleTechGameDir)\Mods\Core\CleverGirl</DeployedModPath>
-  </PropertyGroup>
-  
+  </PropertyGroup>  
   <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\CleverGirl')">
     <!-- flat dir -->
     <DeployedModPath>$(BattleTechGameDir)\Mods\CleverGirl</DeployedModPath>
@@ -26,28 +25,32 @@
     <AssemblyTitle>CleverGirl</AssemblyTitle>
     <Product>CleverGirl</Product>
     <Copyright>Copyright © 2023</Copyright>
-    <AssemblyVersion>0.7.0.0</AssemblyVersion>
-    <FileVersion>0.7.0.0</FileVersion>
-    <ProductVersion>0.7.0.0</ProductVersion>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
     <LangVersion>11</LangVersion>
   </PropertyGroup>
-    
+  
   <Target Name="AfterBuildMigrated" AfterTargets="CopyFilesToOutputDirectory">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods\Core\CleverGirl" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods\Core\CleverGirl')" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods_CBDE\Core\CleverGirl" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods_CBDE\Core\CleverGirl')" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RogueTechRepo)\Core\CleverGirl" Condition="'$(RogueTechRepo)' != '' And Exists('$(RogueTechRepo)\Core\CleverGirl')" />
   </Target>
-  
+
+  <PropertyGroup>
+    <!-- avoids IgnoresAccessChecksToAttribute warnings -->
+    <PublicizerRuntimeStrategies>Unsafe</PublicizerRuntimeStrategies>
+  </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.0" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
+    <Publicize Include="Assembly-CSharp;UnityEngine.UI" />
   </ItemGroup>
   
   <ItemGroup>
-	<PackageReference Include="HarmonyX" Version="2.10.1">
-	  <PrivateAssets>all</PrivateAssets>
-	  <ExcludeAssets>runtime</ExcludeAssets>
-	</PackageReference>
-	
+    <PackageReference Include="HarmonyX" Version="2.10.1">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    
     <Reference Include="Assembly-CSharp">
       <Private>False</Private>
     </Reference>
@@ -85,5 +88,6 @@
     <Reference Include="UnityEngine.CoreModule">
       <Private>False</Private>
     </Reference>
+    
   </ItemGroup>
 </Project>
