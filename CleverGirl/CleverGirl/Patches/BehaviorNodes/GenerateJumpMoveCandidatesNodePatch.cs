@@ -2,51 +2,60 @@
 using System.Reflection;
 using UnityEngine;
 
-namespace CleverGirl.Patches {
+namespace CleverGirl.Patches
+{
 
-    [HarmonyPatch]
-    static class GenerateJumpMoveCandidatesNode_Tick {
+    [HarmonyPatch(typeof(GenerateJumpMoveCandidatesNode), nameof(GenerateJumpMoveCandidatesNode.Tick))]
+    static class GenerateJumpMoveCandidatesNode_Tick
+    {
 
-        static MethodBase TargetMethod() {
-            var type = AccessTools.TypeByName("GenerateJumpMoveCandidatesNode");
-            return AccessTools.Method(type, "Tick");
-        }
 
         // Duplication of HBS code, avoiding prefix=true for now.
         [HarmonyPostfix]
-        static void Postfix(ref BehaviorTreeResults __result, string ___name, BehaviorTree ___tree, AbstractActor ___unit) {
+        static void Postfix(GenerateJumpMoveCandidatesNode __instance, ref BehaviorTreeResults __result)
+        {
             Mod.Log.Trace?.Write("CJMCN:T - entered");
 
-            Mech mech = ___unit as Mech;
-            if (mech != null && mech.WorkingJumpjets > 0) {
-                string stayInsideRegionGUID = RegionUtil.GetStayInsideRegionGUID(___unit);
-                
+            BehaviorTree nodeBehaviorTree = __instance.tree;
+            AbstractActor nodeContextUnit = __instance.unit;
+
+            Mech mech = nodeContextUnit as Mech;
+            if (mech != null && mech.WorkingJumpjets > 0)
+            {
+                string stayInsideRegionGUID = RegionUtil.GetStayInsideRegionGUID(nodeContextUnit);
+
                 float acceptableHeat = AIUtil.GetAcceptableHeatLevelForMech(mech);
                 float currentHeat = (float)mech.CurrentHeat;
                 Mod.Log.Info?.Write($"CJMCN:T - === actor:{mech.DistinctId()} has currentHeat:{currentHeat} and acceptableHeat:{acceptableHeat}");
 
-                List<PathNode> sampledPathNodes = ___unit.JumpPathing.GetSampledPathNodes();
+                List<PathNode> sampledPathNodes = nodeContextUnit.JumpPathing.GetSampledPathNodes();
                 Mod.Log.Info?.Write($"CJMCN:T - calculating {sampledPathNodes.Count} nodes");
-                for (int i = 0; i < sampledPathNodes.Count; i++) {
+                for (int i = 0; i < sampledPathNodes.Count; i++)
+                {
                     Vector3 candidatePos = sampledPathNodes[i].Position;
-                    float distanceBetween2D = AIUtil.Get2DDistanceBetweenVector3s(candidatePos, ___unit.CurrentPosition);
-                    float distanceBetween3D = Vector3.Distance(candidatePos, ___unit.CurrentPosition);
+                    float distanceBetween2D = AIUtil.Get2DDistanceBetweenVector3s(candidatePos, nodeContextUnit.CurrentPosition);
+                    float distanceBetween3D = Vector3.Distance(candidatePos, nodeContextUnit.CurrentPosition);
                     Mod.Log.Info?.Write($"CJMCN:T - calculated distances 2D:'{distanceBetween2D}' 3D:'{distanceBetween3D} ");
-                    if (distanceBetween2D >= 1f) {
-                        float magnitude = (candidatePos - ___unit.CurrentPosition).magnitude;
+                    if (distanceBetween2D >= 1f)
+                    {
+                        float magnitude = (candidatePos - nodeContextUnit.CurrentPosition).magnitude;
                         float jumpHeat = (float)mech.CalcJumpHeat(magnitude);
                         Mod.Log.Info?.Write($"CJMCN:T - calculated jumpHeat:'{jumpHeat}' from magnitude:'{magnitude}. ");
 
                         Mod.Log.Info?.Write($"CJMCN:T - comparing heat: [jumpHeat:'{jumpHeat}' + currentHeat:'{currentHeat}'] <= acceptableHeat:'{acceptableHeat}. ");
-                        if (jumpHeat + (float)mech.CurrentHeat <= acceptableHeat) {
+                        if (jumpHeat + (float)mech.CurrentHeat <= acceptableHeat)
+                        {
 
-                            if (stayInsideRegionGUID != null) {
-                                MapTerrainDataCell cellAt = ___unit.Combat.MapMetaData.GetCellAt(candidatePos);
-                                if (cellAt != null) {
+                            if (stayInsideRegionGUID != null)
+                            {
+                                MapTerrainDataCell cellAt = nodeContextUnit.Combat.MapMetaData.GetCellAt(candidatePos);
+                                if (cellAt != null)
+                                {
                                     MapEncounterLayerDataCell mapEncounterLayerDataCell = cellAt.MapEncounterLayerDataCell;
-                                    if (mapEncounterLayerDataCell != null 
-                                        && mapEncounterLayerDataCell.regionGuidList != null 
-                                        && !mapEncounterLayerDataCell.regionGuidList.Contains(stayInsideRegionGUID)) {
+                                    if (mapEncounterLayerDataCell != null
+                                        && mapEncounterLayerDataCell.regionGuidList != null
+                                        && !mapEncounterLayerDataCell.regionGuidList.Contains(stayInsideRegionGUID))
+                                    {
 
                                         // Skip this loop iteration if 
                                         Mod.Log.Info?.Write($"CJMCN:T - candidate outside of constraint region, ignoring.");
@@ -56,7 +65,7 @@ namespace CleverGirl.Patches {
                             }
 
                             Mod.Log.Info?.Write($"CJMCN:T - adding candidate position:{candidatePos}");
-                            ___tree.movementCandidateLocations.Add(new MoveDestination(sampledPathNodes[i], MoveType.Jumping));
+                            nodeBehaviorTree.movementCandidateLocations.Add(new MoveDestination(sampledPathNodes[i], MoveType.Jumping));
                         }
                     }
 

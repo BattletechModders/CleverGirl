@@ -20,8 +20,7 @@ namespace CleverGirl.InfluenceMap
 		public IEnumerable<Instruction> IncrementalEvaluate()
 		{
 			// Set the unit field, which is used by most methods
-			Traverse unitT = Traverse.Create(hbsIME).Field("unit");
-			this.unit = unitT.GetValue<AbstractActor>();
+			this.unit = hbsIME.unit;
 
 			Mod.Log.Info?.Write($"Initializing the evaluation");
 			yield return ControlFlow.Call(Eval_Initialize());
@@ -40,8 +39,7 @@ namespace CleverGirl.InfluenceMap
 
 			hbsIME.expectedDamageFactor.LogEvaluation();
 
-			Traverse evaluationCompleteT = Traverse.Create(hbsIME).Field("evaluationComplete");
-			evaluationCompleteT.SetValue(true);
+			hbsIME.evaluationComplete = true;
 
 			yield return null;
 		}
@@ -145,8 +143,7 @@ namespace CleverGirl.InfluenceMap
 				workspaceIndex = num;
 			}
 
-			Traverse positionalFactorsT = Traverse.Create(hbsIME).Field("positionalFactors");
-			InfluenceMapPositionFactor[] positionalFactors = positionalFactorsT.GetValue<InfluenceMapPositionFactor[]>();
+			InfluenceMapPositionFactor[] positionalFactors = hbsIME.positionalFactors;
 			Mod.Log.Info?.Write($"Evaluating {positionalFactors.Length} position factors");
 
 			int posFactorIndex = 0;
@@ -254,8 +251,7 @@ namespace CleverGirl.InfluenceMap
 			List<ICombatant> hostiles = getNClosestCombatants(unit.BehaviorTree.enemyUnits, intVal);
 			AIUtil.LogAI($"evaluating vs {hostiles.Count} hostiles");
 
-			Traverse hostileFactorsT = Traverse.Create(hbsIME).Field("hostileFactors");
-			InfluenceMapHostileFactor[] hostileFactors = hostileFactorsT.GetValue<InfluenceMapHostileFactor[]>();
+			InfluenceMapHostileFactor[] hostileFactors = hbsIME.hostileFactors;
 			Mod.Log.Info?.Write($"Evaluating {hostileFactors.Length} hostile factors");
 
 			int hostileFactorIndex = 0;
@@ -350,8 +346,7 @@ namespace CleverGirl.InfluenceMap
 			List<ICombatant> allies = getNClosestCombatants(unit.BehaviorTree.GetAllyUnits().ConvertAll((Converter<AbstractActor, ICombatant>)((AbstractActor X) => X)), intVal);
 			AIUtil.LogAI($"evaluating vs {allies.Count} allies");
 
-			Traverse allyFactorsT = Traverse.Create(hbsIME).Field("allyFactors");
-			InfluenceMapAllyFactor[] allyFactors = allyFactorsT.GetValue<InfluenceMapAllyFactor[]>();
+			InfluenceMapAllyFactor[] allyFactors = hbsIME.allyFactors;
 			Mod.Log.Info?.Write($"Evaluating {allyFactors.Length} ally factors");
 
 			int allyFactorIndex = 0;
