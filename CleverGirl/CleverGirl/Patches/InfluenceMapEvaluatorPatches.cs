@@ -46,29 +46,32 @@ namespace CleverGirl.Patches
         {
 			if (!__runOriginal) return;
 
-			GraphCoroutine ___evaluationCoroutine = __instance.evaluationCoroutine;
-			bool ___evaluationComplete = __instance.evaluationComplete;
-
             Mod.Log.Trace?.Write("AIU:CDT:Post");
 
 			float realtimeSinceStartup = Time.realtimeSinceStartup;
-			if (___evaluationCoroutine == null)
+			if (__instance.evaluationCoroutine == null)
 			{
 				Mod.Log.Info?.Write("Generating new CompoundInfluenceMapEvaluator");
 				CompoundInfluenceMapEvaluator cime = new CompoundInfluenceMapEvaluator(__instance);
+				if (cime == null) 
+				{ 
+					Mod.Log.Warn?.Write("Failed to create a CompoundInfluenceMapEvaluator - this is bad!"); 
+				}
 				__instance.evaluationCoroutine = new GraphCoroutine(cime.IncrementalEvaluate());
-			}
+                Mod.Log.Debug?.Write($"After IncrementalEvaluate: evaluationCoroutine: isNull? {__instance.evaluationCoroutine == null}");
+            }
 
 			while (Time.realtimeSinceStartup - realtimeSinceStartup <= seconds)
 			{
-				___evaluationCoroutine.Update();
-				if (___evaluationComplete)
+				Mod.Log.Debug?.Write($"Updating evaluationCorouting: isNull? {__instance.evaluationCoroutine == null}");
+                __instance.evaluationCoroutine.Update();
+				if (__instance.evaluationComplete)
 				{
 					__instance.evaluationCoroutine = null;
 					break;
 				}
 			}
-			__result = ___evaluationComplete;
+			__result = __instance.evaluationComplete;
 
 			__runOriginal = false;
         }
