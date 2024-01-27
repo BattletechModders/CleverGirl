@@ -1,7 +1,9 @@
 ﻿using BattleTech;
+using BattleTech.StringInterpolation;
 using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using IRBTModUtils;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -55,7 +57,8 @@ namespace CleverGirl
                 CondensedWeapon cWeapon = kvp.Value;
                 Mod.Log.Debug?.Write($" -- weapon => '{cWeapon.First.UIName}'");
 
-                if (cWeapon.First.WeaponCategoryValue.CanUseInMelee)
+                Weapon rawWeapon = cWeapon.First;
+                if (rawWeapon.WeaponCategoryValue.CanUseInMelee)
                 {
                     Mod.Log.Debug?.Write($" -- can be used in melee, adding to melee sets.");
                     MeleeWeapons.Add(cWeapon);
@@ -65,12 +68,33 @@ namespace CleverGirl
                     // DFAWeapons.Add(cWeapon);
                 }
 
-                bool willFireAtTarget = cWeapon.First.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
-                bool withinRange = distance <= cWeapon.First.MaxRange;
-                Mod.Log.Debug?.Write($" -- willFireAtTarget: {willFireAtTarget}  withinRange: {withinRange}");
-                if (willFireAtTarget && withinRange)
+                // WillFireAtTargetFromPosition has an implicit check in CAC for minimum range. False can mean there's a possible shot, but weapon mode is limiting the action
+                bool willFireAtTarget = rawWeapon.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
+                bool withinRange = distance <= rawWeapon.MaxRange;
+                Mod.Log.Debug?.Write($" -- base weaponAndAmmo has willFire: {willFireAtTarget}  willFire: {withinRange}");
+
+                bool canAttack = willFireAtTarget && withinRange;
+
+                // Iterate weapon and ammo modes
+                if (cWeapon.ammoAndMode != null)
                 {
-                    Mod.Log.Debug?.Write($" -- has LOF and is within range, adding to ranged set");
+                    foreach (AmmoModePair item in rawWeapon.getAvaibleFiringMethods())
+                    {
+                        rawWeapon.ApplyAmmoMode(item);
+                        bool modeWillFire = rawWeapon.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
+                        bool modeInRange = distance <= rawWeapon.MaxRange;
+                        Mod.Log.Debug?.Write($" -- ammoMode: {item.ammoId}_{item.modeId} for weapon: {rawWeapon.UIName} has willFire: {modeWillFire} willFire: {modeInRange}");
+
+                        if (modeWillFire && modeInRange && !canAttack)
+                        {
+                            canAttack = true;
+                        }
+                    }
+                }
+
+                if (canAttack)
+                {
+                    Mod.Log.Debug?.Write($" -- weapon has LOF and is within range, adding to ranged set");
                     RangedWeapons.Add(cWeapon);
                 }
 

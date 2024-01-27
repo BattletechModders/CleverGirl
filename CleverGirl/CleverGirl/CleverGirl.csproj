@@ -24,9 +24,9 @@
     <DebugType>none</DebugType>
     <AssemblyTitle>CleverGirl</AssemblyTitle>
     <Product>CleverGirl</Product>
-    <Copyright>Copyright © 2023</Copyright>
-    <AssemblyVersion>2.1.1</AssemblyVersion>
-    <FileVersion>2.1.1</FileVersion>
+    <Copyright>Copyright © 2024</Copyright>
+    <AssemblyVersion>2.2.1</AssemblyVersion>
+    <FileVersion>2.2.1</FileVersion>
     <LangVersion>11</LangVersion>
   </PropertyGroup>
   
