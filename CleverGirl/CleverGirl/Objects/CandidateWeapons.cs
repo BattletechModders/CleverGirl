@@ -76,7 +76,8 @@ namespace CleverGirl
                 bool canAttack = willFireAtTarget && withinRange;
 
                 // Iterate weapon and ammo modes
-                if (cWeapon.ammoAndMode != null)
+                List<AmmoModePair> firingMethods = rawWeapon.getAvaibleFiringMethods();
+                if (firingMethods != null && firingMethods.Count > 0)
                 {
                     foreach (AmmoModePair item in rawWeapon.getAvaibleFiringMethods())
                     {
