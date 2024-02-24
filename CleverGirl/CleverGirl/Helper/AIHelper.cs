@@ -9,30 +9,36 @@ using UnityEngine;
 namespace CleverGirl {
     public class AIHelper {
 
-        public static int HeatForAttack(List<CondensedWeapon> weaponList) {
+        public static int HeatForAttack(List<CondensedWeaponAmmoMode> weaponList) {
             int num = 0;
             for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
-                num += ((int)cWeapon.First.HeatGenerated * cWeapon.weaponsCondensed);
+                CondensedWeaponAmmoMode cWeapon = weaponList[i];
+                cWeapon.ApplyAmmoMode();
+                Weapon rawWeapon = cWeapon.First;
+                num += ((int)rawWeapon.HeatGenerated * cWeapon.weaponsCondensed);
+                cWeapon.RestoreBaseAmmoMode();
             }
             return num;
         }
 
-        public static float LowestHitChance(List<CondensedWeapon> weaponList, ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool targetIsEvasive) {
+        public static float LowestHitChance(List<CondensedWeaponAmmoMode> weaponList, ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool targetIsEvasive) {
             float num = float.MaxValue;
             for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
+                CondensedWeaponAmmoMode cWeapon = weaponList[i];
+                cWeapon.ApplyAmmoMode();
                 float toHitFromPosition = cWeapon.First.GetToHitFromPosition(target, 1, attackPosition, targetPosition, true, targetIsEvasive, false);
                 num = Mathf.Min(num, toHitFromPosition);
+                cWeapon.RestoreBaseAmmoMode();
             }
             return num;
         }
 
-        public static float ExpectedDamageForAttack(AbstractActor unit, AIUtil.AttackType attackType, List<CondensedWeapon> weaponList,
-            ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool useRevengeBonus, AbstractActor unitForBVContext) {
+        public static float ExpectedDamageForAttack(AbstractActor unit, AIUtil.AttackType attackType, List<CondensedWeaponAmmoMode> weaponList,
+            ICombatant target, Vector3 attackPosition, Vector3 targetPosition, bool useRevengeBonus, AbstractActor unitForBVContext, out bool isArtilleryAttack) {
 
             Mech mech = unit as Mech;
             AbstractActor abstractActor = target as AbstractActor;
+            isArtilleryAttack = false;
 
             // Attack type is melee and there's no path or ability, fail
             if (attackType == AIUtil.AttackType.Melee &&
@@ -53,16 +59,39 @@ namespace CleverGirl {
 
             AttackParams attackParams = new AttackParams(attackType, unit, target as AbstractActor, attackPosition, weaponList.Count, useRevengeBonus);
 
-            float totalExpectedDam = 0f;
-            for (int i = 0; i < weaponList.Count; i++) {
-                CondensedWeapon cWeapon = weaponList[i];
-                totalExpectedDam += CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, unit, attackPosition, target, targetPosition);
+            Dictionary<bool, float> totalExpectedDam = new Dictionary<bool, float>
+            {
+                {false, 0},
+                {true, 0}
+            };
+            foreach (var cWeapon in weaponList)
+            {
+                cWeapon.ApplyAmmoMode();
+                bool isArtillery = cWeapon.First.IsArtillery();
+                totalExpectedDam[isArtillery] += CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, unit, attackPosition, target, targetPosition);
+                cWeapon.RestoreBaseAmmoMode();
             }
 
             float blowQualityMultiplier = unit.Combat.ToHit.GetBlowQualityMultiplier(attackParams.Quality);
-            float totalDam = totalExpectedDam * blowQualityMultiplier;
+            float artilleryDamage = totalExpectedDam.GetValueOrDefault(true, 0f) * blowQualityMultiplier;
+            float standardDamage = totalExpectedDam.GetValueOrDefault(false, 0f) * blowQualityMultiplier;
 
-            return totalDam;
+            if (artilleryDamage == 0)
+            {
+                Mod.Log.Debug?.Write($"Expected damage for attack is {standardDamage}");
+            }
+            else
+            {
+                Mod.Log.Debug?.Write($"Expected damage for attack is standard: {standardDamage} artillery: {artilleryDamage}");
+            }
+
+            if (artilleryDamage > standardDamage)
+            {
+                Mod.Log.Debug?.Write("-- Picking artillery attack");
+                isArtilleryAttack = true;
+                return artilleryDamage;
+            }
+            return standardDamage;
         }
 
         private class AttackParams {
@@ -101,66 +130,20 @@ namespace CleverGirl {
         }
 
         // Calculate the expected value for a given weapon against the target
-        private static float CalculateWeaponDamageEV(CondensedWeapon cWeapon, BehaviorTree bTree, AttackParams attackParams,
+        private static float CalculateWeaponDamageEV(CondensedWeaponAmmoMode cWeapon, BehaviorTree bTree, AttackParams attackParams,
             AbstractActor attacker, Vector3 attackerPos, ICombatant target, Vector3 targetPos) {
            
             try
             {
-                float attackTypeWeight = 1f;
-                switch (attackParams.AttackType)
-                {
-                    case AIUtil.AttackType.Shooting:
-                        {
-                            attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            break;
-                        }
-                    case AIUtil.AttackType.Melee:
-                        {
-                            Mech targetMech = target as Mech;
-                            Mech attackingMech = attacker as Mech;
-                            if (attackParams.UseRevengeBonus && targetMech != null && attackingMech != null && attackingMech.IsMeleeRevengeTarget(targetMech))
-                            {
-                                attackTypeWeight += BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeRevengeBonus).FloatVal;
-                            }
-                            if (attackingMech != null && cWeapon.First == attackingMech.MeleeWeapon)
-                            {
-                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeDamageMultiplier).FloatVal;
-                                if (attackParams.TargetIsUnsteady)
-                                {
-                                    attackTypeWeight += BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_MeleeVsUnsteadyTargetDamageMultiplier).FloatVal;
-                                }
-                            }
-                            else
-                            {
-                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            }
-                            break;
-                        }
-                    case AIUtil.AttackType.DeathFromAbove:
-                        {
-                            Mech attackerMech = attacker as Mech;
-                            if (attackerMech != null && cWeapon.First == attackerMech.DFAWeapon)
-                            {
-                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_DFADamageMultiplier).FloatVal;
-                            }
-                            else
-                            {
-                                attackTypeWeight = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_ShootingDamageMultiplier).FloatVal;
-                            }
-                            break;
-                        }
-                    default:
-                        Debug.LogError("unknown attack type: " + attackParams.AttackType);
-                        break;
-                }
-
+                cWeapon.ApplyAmmoMode();
                 float toHitFromPos = cWeapon.First.GetToHitFromPosition(target, 1, attackerPos, targetPos, true, attackParams.TargetIsEvasive, false);
+                cWeapon.RestoreBaseAmmoMode();
                 if (attackParams.IsBreachingShotAttack)
                 {
                     // Breaching shot is assumed to auto-hit... why?
                     toHitFromPos = 1f;
                 }
-                Mod.Log.Debug?.Write($"Evaluating weapon: {cWeapon.First.Name} with toHitFromPos:{toHitFromPos}");
+                Mod.Log.Debug?.Write($"Evaluating weapon: {cWeapon.First.Name} using ammoMode:{cWeapon.ammoModePair} with toHitFromPos:{toHitFromPos}");
 
                 float heatToDamRatio = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_HeatToDamageRatio).FloatVal;
                 float stabToDamRatio = BehaviorHelper.GetBehaviorVariableValue(bTree, BehaviorVariableName.Float_UnsteadinessToVirtualDamageConversionRatio).FloatVal;
@@ -176,22 +159,9 @@ namespace CleverGirl {
                 }
                 Mod.Log.Debug?.Write($"Melee status weight calculated as: {meleeStatusWeights}");
 
-                DetermineMaxDamageAmmoModePair(cWeapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair);
-                Mod.Log.Debug?.Write($"Max damage from ammoBox: {maxDamagePair?.ammoId}_{maxDamagePair?.modeId} EV: {maxDamage}");
-                cWeapon.ammoAndMode = maxDamagePair;
-
-                //float damagePerShotFromPos = cWeapon.First.DamagePerShotFromPosition(attackParams.MeleeAttackType, attackerPos, target);
-                //float heatDamPerShotWeight = cWeapon.First.HeatDamagePerShot * heatToDamRatio;
-                //float stabilityDamPerShotWeight = attackParams.TargetIsUnsteady ? cWeapon.First.Instability() * stabToDamRatio : 0f;
-
-                //float meleeStatusWeights = 0f;
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsBraced) ? 0f : (damagePerShotFromPos * bracedMeleeMulti));
-                //meleeStatusWeights += ((attackParams.AttackType != AIUtil.AttackType.Melee || !attackParams.TargetIsEvasive) ? 0f : (damagePerShotFromPos * evasiveMeleeMult));
-
-                //int shotsWhenFired = cWeapon.First.ShotsWhenFired;
-                //float weaponDamageEV = (float)shotsWhenFired * toHitFromPos * (damagePerShotFromPos + heatDamPerShotWeight + stabilityDamPerShotWeight + meleeStatusWeights);
-                float aggregateDamageEV = maxDamage * cWeapon.weaponsCondensed;
-                Mod.Log.Debug?.Write($"Aggregate EV = {aggregateDamageEV} == maxDamage: {maxDamage} * weaponsCondensed: {cWeapon.weaponsCondensed}");
+                float weaponDamageEV = DetermineDamage(cWeapon, attackParams, attacker, attackerPos, target, heatToDamRatio, stabToDamRatio);
+                float aggregateDamageEV = weaponDamageEV * cWeapon.weaponsCondensed;
+                Mod.Log.Debug?.Write($"Aggregate EV = {aggregateDamageEV} == damage: {weaponDamageEV} * weaponsCondensed: {cWeapon.weaponsCondensed}");
 
                 return aggregateDamageEV;
             }
@@ -201,142 +171,89 @@ namespace CleverGirl {
                 return 0f;
             }
         }
-
-        private static void DetermineMaxDamageAmmoModePair(CondensedWeapon cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
-            ICombatant target, float heatToDamRatio, float stabToDamRatio, out float maxDamage, out AmmoModePair maxDamagePair)
+        
+        private static float DetermineDamage(CondensedWeaponAmmoMode cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
+            ICombatant target, float heatToDamRatio, float stabToDamRatio)
         {
-            Mod.Log.Debug?.Write($"Gathering damage predictions for weapon: {cWeapon.First.UIName} from attacker: {attacker.DistinctId()} to target: {target.DistinctId()}");
-            Dictionary<AmmoModePair, WeaponFirePredictedEffect> damagePredictions = CleverGirlHelper.gatherDamagePrediction(cWeapon.First, attackerPos, target);
-            Mod.Log.Debug?.Write($" -- Done!");
+            Mod.Log.Debug?.Write($"Calculating damage prediction for weapon: {cWeapon.First.UIName} for mode: {cWeapon.ammoModePair.modeId} with ammo: {cWeapon.ammoModePair.ammoId} from attacker: {attacker.DistinctId()} to target: {target.DistinctId()} at distance {Vector3.Distance(target.CurrentPosition,attacker.CurrentPosition)}");
+            WeaponFirePredictedEffect weaponFirePredictedEffect = cWeapon.First.CalcPredictedEffect(attackerPos, target);
 
-            maxDamage = 0f;
-            maxDamagePair = null;
-            if (damagePredictions == null || damagePredictions.Count == 0)
+            float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
+            foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
             {
-                if (cWeapon.First.getCurrentAmmoMode() != null)
+                if (dpr == null)
                 {
-                    // WORK AROUND CAC BUG HERE
-                    AmmoModePair currentAmmo = cWeapon.First.getCurrentAmmoMode();
-                    cWeapon.First.ApplyAmmoMode(currentAmmo);
-                    damagePredictions.Add(currentAmmo, cWeapon.First.CalcPredictedEffect(attackerPos, target));
-                    cWeapon.First.ResetTempAmmo();
+                    Mod.Log.Debug?.Write($"  DPR was null, skipping!");
+                    continue;
+                }
+
+                float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
+                // Chance to knockdown... but evasion dump is more valuable?
+                if (attackParams.TargetIsUnsteady)
+                {
+                    dprEV += dpr.HitsCount * dpr.ToHit * (dpr.Instability * stabToDamRatio);
+                }
+                // TODO: If mech, check if if (this._stability > this.UnsteadyThreshold && !base.IsUnsteady), 
+                // 	num3 *= base.StatCollection.GetValue<float>("ReceivedInstabilityMultiplier");
+                //  num3 *= base.EntrenchedMultiplier;
+                // Multiply by number of pips dumped?
+
+                // TODO: If the mech is overheating, apply different factors than just the raw 'heatToDamRatio'?
+                // ASSUME CBTBE here?
+                // Caculate damage from ammo explosion? Calculate potential loss of weapons from shutdown?
+
+                // If melee - apply weights?
+                // If target is braced / guarded - reduce damage?
+                // If target is evasive - weight AoE attacks (since they auto-hit)?
+
+                if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
+                {
+                    Mod.Log.Debug?.Write($" - Weapon will damage on jam, reducing EV by 1 - {weaponFirePredictedEffect.JammChance}.");
+                    dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
+                }
+
+                // Check target damage reduction?
+                //float armorReduction = 0f;
+                //foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
+                //{
+                //    //Mod.Log.Debug?.Write($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
+                //    if (aBox.componentDef.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
+                //    {
+                //        armorReduction = cgComp.ArmorDamageReduction;
+                //    }
+                //}
+                //if (armorReduction != 0f)
+                //{
+                //    Mod.Log.Debug?.Write($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
+                //}
+
+                // TODO: AMS provides a shield to allies
+
+                // Need to precalc some values on every combatant - 
+                //  find objective targets
+                //  heat to cripple / damage / etc
+                //  stability damage to unsteady / to knockdown
+
+                // TODO: Can we weight AMS as a weapon when it covers friendlies?
+
+                Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
+                if (targetHostility == Hostility.FRIENDLY)
+                {
+                    alliedDamage += dprEV;
+                }
+                else if (targetHostility == Hostility.NEUTRAL)
+                {
+                    neutralDamage += dprEV;
                 }
                 else
                 {
-                    Mod.Log.Warn?.Write($"Damage predictions were null or empty! Returning a null MaxDamagePair!");
-                    return;
+                    enemyDamage += dprEV;
                 }
             }
 
-            foreach (KeyValuePair<AmmoModePair, WeaponFirePredictedEffect> kvp in damagePredictions)
-            {
-                AmmoModePair ammoModePair = kvp.Key;
-                WeaponFirePredictedEffect weaponFirePredictedEffect = kvp.Value;
-                Mod.Log.Debug?.Write($" - Evaluating ammoId: {ammoModePair?.ammoId} with modeId: {ammoModePair?.modeId}");
-
-                if (weaponFirePredictedEffect == null || ammoModePair == null)
-                {
-                    Mod.Log.Warn?.Write($" - Got a null for weaponFirePredictedEffect: {(weaponFirePredictedEffect == null)}" +
-                        $" or ammoModePair: {(ammoModePair == null)}");
-                }
-
-                float enemyDamage = 0f, alliedDamage = 0f, neutralDamage = 0f;
-                foreach (DamagePredictionRecord dpr in weaponFirePredictedEffect.predictDamage)
-                {
-                    if (dpr == null)
-                    {
-                        Mod.Log.Debug?.Write($"  DPR was null, skipping!");
-                        continue;
-                    }
-
-                    float dprEV = dpr.HitsCount * dpr.ToHit * (dpr.Normal + (dpr.Heat * heatToDamRatio) + dpr.AP);
-                    // Chance to knockdown... but evasion dump is more valuable?
-                    if (attackParams.TargetIsUnsteady)
-                    {
-                        dprEV += dpr.HitsCount * dpr.ToHit * (dpr.Instability * stabToDamRatio);
-                    }
-                    // TODO: If mech, check if if (this._stability > this.UnsteadyThreshold && !base.IsUnsteady), 
-                    // 	num3 *= base.StatCollection.GetValue<float>("ReceivedInstabilityMultiplier");
-                    //  num3 *= base.EntrenchedMultiplier;
-                    // Multiply by number of pips dumped?
-
-                    // TODO: If the mech is overheating, apply different factors than just the raw 'heatToDamRatio'?
-                    // ASSUME CBTBE here?
-                    // Caculate damage from ammo explosion? Calculate potential loss of weapons from shutdown?
-
-                    // If melee - apply weights?
-                    // If target is braced / guarded - reduce damage?
-                    // If target is evasive - weight AoE attacks (since they auto-hit)?
-
-                    if (weaponFirePredictedEffect.DamageOnJamm && weaponFirePredictedEffect.JammChance != 0f)
-                    {
-                        Mod.Log.Debug?.Write($" - Weapon will damage on jam, reducing EV by 1 - {weaponFirePredictedEffect.JammChance}.");
-                        dprEV *= (1.0f - weaponFirePredictedEffect.JammChance);
-                    }
-
-                    // Check target damage reduction?
-                    //float armorReduction = 0f;
-                    //foreach (AmmunitionBox aBox in cWeapon.First.ammoBoxes)
-                    //{
-                    //    //Mod.Log.Debug?.Write($" -- Checking ammo box defId: {aBox.mechComponentRef.ComponentDefID}");
-                    //    if (aBox.componentDef.Is<CleverGirlComponent>(out CleverGirlComponent cgComp) && cgComp.ArmorDamageReduction != 0)
-                    //    {
-                    //        armorReduction = cgComp.ArmorDamageReduction;
-                    //    }
-                    //}
-                    //if (armorReduction != 0f)
-                    //{
-                    //    Mod.Log.Debug?.Write($" -- APPLY DAMAGE REDUCTION OF: {armorReduction}");
-                    //}
-
-                    // TODO: AMS provides a shield to allies
-
-                    // Need to precalc some values on every combatant - 
-                    //  find objective targets
-                    //  heat to cripple / damage / etc
-                    //  stability damage to unsteady / to knockdown
-
-                    // TODO: Can we weight AMS as a weapon when it covers friendlies?
-
-                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.team, dpr.Target.team);
-                    if (targetHostility == Hostility.FRIENDLY) { alliedDamage += dprEV; }
-                    else if (targetHostility == Hostility.NEUTRAL) { neutralDamage += dprEV; }
-                    else { enemyDamage += dprEV; }
-                }
-
-                float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
-                Mod.Log.Debug?.Write($"  == ammoBox: {ammoModePair.ammoId}_{ammoModePair.modeId} => enemyDamage: {enemyDamage} + neutralDamage: {neutralDamage} - alliedDamage: {alliedDamage} -> damageEV: {damageEV}");
-                if (damageEV >= maxDamage)
-                {
-                    maxDamage = damageEV;
-                    maxDamagePair = ammoModePair;
-                }
-
-                Mod.Log.Debug?.Write($" - DONE Evaluating ammoId: {ammoModePair?.ammoId} with modeId: {ammoModePair?.modeId}");
-
-            }
-        }
-
-        public static void TargetsWithinAoE(AbstractActor attacker, Vector3 position, float radius, 
-            out int alliesWithin, out int neutralWithin, out int enemyWithin) {
-
-            alliesWithin = 0;
-            neutralWithin = 0;
-            enemyWithin = 0;
-            foreach (ICombatant target in attacker.Combat.GetAllLivingCombatants()) {
-                float distance = (target.CurrentPosition - position).magnitude;
-                if (distance <= radius) {
-                    Hostility targetHostility = attacker.Combat.HostilityMatrix.GetHostility(attacker.TeamId, target.team?.GUID);
-                    if (targetHostility == Hostility.ENEMY) {
-                        enemyWithin++;
-                    } else if (targetHostility == Hostility.NEUTRAL) {
-                        neutralWithin++;
-                    } else if (targetHostility == Hostility.FRIENDLY) {
-                        alliesWithin++;
-                    }
-                }
-            }
-
+            float damageEV = enemyDamage + neutralDamage - (alliedDamage * Mod.Config.Weights.FriendlyDamageMulti);
+            Mod.Log.Debug?.Write($" - DONE Calculating damage prediction for weapon: {cWeapon.First.UIName} for mode: {cWeapon.ammoModePair.modeId} with ammo: {cWeapon.ammoModePair.ammoId}");
+            return damageEV;
         }
 
         public static bool IsDFAAcceptable(AbstractActor attacker, ICombatant targetCombatant)
@@ -372,7 +289,5 @@ namespace CleverGirl {
             Mod.Log.Debug?.Write($"Returning {maxTargetDam >= existingTargetDam} as maxTargetDamage: {maxTargetDam} >= ExistingTargetDamageForDFAAttack BehVar: {existingTargetDam}");
             return maxTargetDam >= existingTargetDam;
         }
-
-       
     }
 }

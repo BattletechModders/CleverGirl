@@ -42,6 +42,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
+    <PackageReference Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
     <Publicize Include="Assembly-CSharp;UnityEngine.UI" />
   </ItemGroup>
   

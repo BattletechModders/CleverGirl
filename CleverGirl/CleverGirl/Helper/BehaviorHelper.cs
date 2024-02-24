@@ -1,4 +1,7 @@
-﻿namespace CleverGirl.Helper
+﻿using System;
+using System.Diagnostics;
+
+namespace CleverGirl.Helper
 {
     public static class BehaviorHelper
     {
@@ -17,7 +20,7 @@
             {
                 // Ask RolePlayer for the variable
                 //getBehaviourVariable(AbstractActor actor, BehaviorVariableName name)
-                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue from RolePlayer for unit: {bTree.unit.DistinctId()}.");
+                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue {name} from RolePlayer for unit: {bTree.unit.DistinctId()}.");
                 bhVarVal = (BehaviorVariableValue)ModState.RolePlayerGetBehaviorVar.Invoke(ModState.RolePlayerBehaviorVarManager, new object[] { bTree.unit, name });
             }
 
@@ -25,13 +28,33 @@
             {
                 // RolePlayer does not return the vanilla value if there's no configuration for the actor. We need to check that we're null here to trap that edge case.
                 // Also, if RolePlayer isn't configured we need to read the value. 
-                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue from Vanilla for unit: {bTree.unit.DistinctId()}.");
+                Mod.Log.Trace?.Write($"Pulling BehaviorVariableValue {name} from Vanilla for unit: {bTree.unit.DistinctId()}.");
                 bhVarVal = GetBehaviorVariableValueDirectly(bTree, name);
             }
 
-            Mod.Log.Trace?.Write($"  Value is: {bhVarVal}");
+            Mod.Log.Trace?.Write($" Value of {name} with type {bhVarVal.type} is {bhVarVal.GetValueString()}");
             return bhVarVal;
 
+        }
+
+        private static string GetValueString(this BehaviorVariableValue behaviorVariableValue)
+        {
+            switch (behaviorVariableValue.type)
+            {
+                case BehaviorVariableValue.BehaviorVariableType.Undefined:
+                case BehaviorVariableValue.BehaviorVariableType.EncounterObjectGameLogic:
+                    return "Undefined";
+                case BehaviorVariableValue.BehaviorVariableType.Float:
+                    return behaviorVariableValue.FloatVal.ToString();
+                case BehaviorVariableValue.BehaviorVariableType.Int:
+                    return behaviorVariableValue.IntVal.ToString();
+                case BehaviorVariableValue.BehaviorVariableType.Bool:
+                    return behaviorVariableValue.BoolVal.ToString();
+                case BehaviorVariableValue.BehaviorVariableType.String:
+                    return behaviorVariableValue.StringVal;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         // TODO: EVERYTHING SHOULD CONVERT TO CACHED CALL IF POSSIBLE

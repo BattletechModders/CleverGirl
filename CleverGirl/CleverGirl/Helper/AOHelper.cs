@@ -5,6 +5,10 @@ using IRBTModUtils.Extension;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using CleverGirl.Objects;
+using CleverGirlAIDamagePrediction;
+using CustAmmoCategories;
+using TScript.Ops;
 using UnityEngine;
 using static AttackEvaluator;
 
@@ -41,10 +45,10 @@ namespace CleverGirl.Helper {
 
             Mech targetMech = target as Mech;
             bool targetIsEvasive = targetMech != null && targetMech.IsEvasive;
-            List<List<CondensedWeapon>>[] weaponSetsByAttackType = {
-                new List<List<CondensedWeapon>>() { },
-                new List<List<CondensedWeapon>>() { },
-                new List<List<CondensedWeapon>>() { }
+            List<List<CondensedWeaponAmmoMode>>[] weaponSetsByAttackType = {
+                new List<List<CondensedWeaponAmmoMode>>() { },
+                new List<List<CondensedWeaponAmmoMode>>() { },
+                new List<List<CondensedWeaponAmmoMode>>() { }
             };
 
             // Note: Disabled the evasion fractional checking that Vanilla uses. Should make units more free with ammunition against evasive foes
@@ -84,15 +88,22 @@ namespace CleverGirl.Helper {
             }
             Mod.Log.Debug?.Write($"BestDFAPosition: {bestDFAPosition} has weaponSets:{weaponSetsByAttackType[2].Count}");
 
-            List<AttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
-            Mod.Log.Debug?.Write(string.Format("AEHelper found {0} different attack solutions after evaluating attacks", list.Count));
+            List<AmmoModeAttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
+            Mod.Log.Debug?.Write($"AEHelper found {list.Count} different attack solutions after evaluating attacks");
+            if (Mod.Log.IsTrace)
+            {
+                for (var i = 0; i < list.Count; i++)
+                {
+                    Mod.Log.Trace?.Write($"Attack Evaluation {i} => {list[i]}");
+                }
+            }
             float bestRangedEDam = 0f;
             float bestMeleeEDam = 0f;
             float bestDFAEDam = 0f;
             for (int m = 0; m < list.Count; m++)
             {
-                AttackEvaluation attackEvaluation = list[m];
-                Mod.Log.Debug?.Write($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
+                AmmoModeAttackEvaluation attackEvaluation = list[m];
+                Mod.Log.Trace?.Write($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
                     $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
                 switch (attackEvaluation.AttackType)
                 {
@@ -123,16 +134,16 @@ namespace CleverGirl.Helper {
             // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++)
             {
-                AttackEvaluator.AttackEvaluation attackEvaluation2 = list[n];
+                AmmoModeAttackEvaluation attackEvaluation2 = list[n];
                 Mod.Log.Debug?.Write($" ==== Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
 
                 // TODO: Do we really need this spam?
                 StringBuilder weaponListSB = new StringBuilder();
                 weaponListSB.Append(" Weapons: (");
-                foreach (Weapon weapon3 in attackEvaluation2.WeaponList)
+                foreach (KeyValuePair<Weapon, AmmoModePair> wamp in attackEvaluation2.WeaponList)
                 {
                     weaponListSB.Append("'");
-                    weaponListSB.Append(weapon3.Name);
+                    weaponListSB.Append(wamp.Key.UIName);
                     weaponListSB.Append("', ");
                 }
                 weaponListSB.Append(")");
@@ -281,11 +292,28 @@ namespace CleverGirl.Helper {
 
                     AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target)
                     {
-                        Weapons = attackEvaluation2.WeaponList,
+                        Weapons = new List<Weapon>(attackEvaluation2.WeaponList.Keys),
                         TargetUnit = target,
                         IsMelee = false,
                         IsDeathFromAbove = false
                     };
+                    
+                    // Apply the selected AmmoModes
+                    
+                    foreach (Weapon weapon in attackOrderInfo.Weapons)
+                    {
+                        AmmoModePair selectedAmmoMode = attackEvaluation2.WeaponList[weapon];
+                        weapon.ApplyAmmoMode(selectedAmmoMode);
+                        if (selectedAmmoMode.ammoId != null)
+                        {
+                            Mod.Log.Debug?.Write($"-- Applying selected AmmoMode {selectedAmmoMode} to weapon {weapon.UIName}");
+                        }
+                        else
+                        {
+                            Mod.Log.Debug?.Write($"-- Applying selected firing mode {selectedAmmoMode.modeId} to weapon {weapon.UIName}");
+                        }
+                    }
+
                     AIUtil.AttackType attackType = attackEvaluation2.AttackType;
                     Mod.Log.Debug?.Write($"Created attackOrderInfo with attackType: {attackType} vs. target: {target.DistinctId()}.  " +
                         $"WeaponCount: {attackOrderInfo?.Weapons?.Count} IsMelee: {attackOrderInfo.IsMelee}  IsDeathFromAbove: {attackOrderInfo.IsDeathFromAbove}");
@@ -325,9 +353,9 @@ namespace CleverGirl.Helper {
             return 0f;
         }
 
-        private static List<List<CondensedWeapon>> MakeDFAWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
+        private static List<List<CondensedWeaponAmmoMode>> MakeDFAWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
         {
-            List<List<CondensedWeapon>> dfaWeaponSets = new List<List<CondensedWeapon>>();
+            List<List<CondensedWeaponAmmoMode>> dfaWeaponSets = new List<List<CondensedWeaponAmmoMode>>();
 
             if (attacker == null || !AIHelper.IsDFAAcceptable(attacker, target))
             {
@@ -343,10 +371,11 @@ namespace CleverGirl.Helper {
                 //} else {
                 //    dfaWeaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
                 //}
-                List<List<CondensedWeapon>> weaponSets = AEHelper.MakeWeaponSets(candidateWeapons.DFAWeapons);
+                List<List<CondensedWeaponAmmoMode>> weaponSets = AEHelper.MakeWeaponAmmoModeSets(candidateWeapons.DFAWeapons);
 
                 // Add DFA weapons to each set
-                CondensedWeapon cDFAWeapon = new CondensedWeapon(attacker.DFAWeapon);
+                CondensedWeaponAmmoMode cDFAWeapon = new CondensedWeaponAmmoMode(new CondensedWeapon(attacker.DFAWeapon), attacker.DFAWeapon.getCurrentAmmoMode());
+                // DFA weapon, use base mode
                 for (int i = 0; i < weaponSets.Count; i++)
                 {
                     weaponSets[i].Add(cDFAWeapon);
@@ -358,11 +387,11 @@ namespace CleverGirl.Helper {
             return dfaWeaponSets;
         }
 
-        private static List<List<CondensedWeapon>> MakeMeleeWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
+        private static List<List<CondensedWeaponAmmoMode>> MakeMeleeWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
         {
             Mod.Log.Info?.Write($"== Creating melee weaponSets for attacker: {attacker.DistinctId()} versus target: {target.DistinctId()}");
 
-            List<List<CondensedWeapon>> meleeWeaponSets = new List<List<CondensedWeapon>>();
+            List<List<CondensedWeaponAmmoMode>> meleeWeaponSets = new List<List<CondensedWeaponAmmoMode>>();
 
             // REVERSING THIS TO CHECK - Check for HasMoved, because the behavior tree will evaluate a stationary node and generate a melee attack order for it
             if (attacker == null)
@@ -418,14 +447,17 @@ namespace CleverGirl.Helper {
                 List<CondensedWeapon> condensedUsableWeps = condensed.Values.ToList();
                 Mod.Log.Debug?.Write($"There are {condensedUsableWeps.Count} usable condensed weapons.");
 
-                List<List<CondensedWeapon>> weaponSets = AEHelper.MakeWeaponSets(condensedUsableWeps);
+                List<List<CondensedWeaponAmmoMode>> weaponSets = AEHelper.MakeWeaponAmmoModeSets(condensedUsableWeps);
 
                 // Add melee weapon to each set. Increase it's damage to deal with virtual damage
                 CondensedWeapon cMeleeWeapon = new CondensedWeapon(attacker.MeleeWeapon);
                 cMeleeWeapon.First.StatCollection.Set(ModStats.HBS_Weapon_DamagePerShot, virtualMeleeDamage);
                 for (int i = 0; i < weaponSets.Count; i++)
                 {
-                    weaponSets[i].Add(cMeleeWeapon);
+                    foreach (AmmoModePair ammoModePair in cMeleeWeapon.First.getAvaibleFiringMethods())
+                    {
+                        weaponSets[i].Add(new CondensedWeaponAmmoMode(cMeleeWeapon, ammoModePair));
+                    }
                 }
 
                 meleeWeaponSets = weaponSets;
@@ -457,7 +489,16 @@ namespace CleverGirl.Helper {
                     }
                     else
                     {
-                        rawRangedDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
+                        int optimalDamage = 0;
+                        AmmoModePair currentAmmoMode = weapon.getCurrentAmmoMode();
+                        foreach (AmmoModePair ammoModePair in weapon.getAvaibleFiringMethods())
+                        {
+                            weapon.ApplyAmmoMode(ammoModePair);
+                            optimalDamage = Mathf.Max(optimalDamage, (int)(weapon.DamagePerShot * weapon.ShotsWhenFired));
+                        }
+                        weapon.ApplyAmmoMode(currentAmmoMode);
+                        weapon.ResetTempAmmo();
+                        rawRangedDam += optimalDamage;
                     }
                 }
 

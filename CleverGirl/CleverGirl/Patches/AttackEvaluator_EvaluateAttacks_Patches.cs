@@ -95,7 +95,7 @@ namespace CleverGirl.Patches
             Mod.AttackEvalLog.Debug?.Write(" === END OPPORTUNITY FIRE CHECKS ===");
 
             if (__result != null && bestTargDamage > 0) {
-                Mod.AttackEvalLog.Info?.Write($"Successfuly calculated attack order vs. target: {((AttackOrderInfo)__result.orderInfo).TargetUnit.DistinctId()}");
+                Mod.AttackEvalLog.Info?.Write($"Successfully calculated attack order vs. target: {((AttackOrderInfo)__result.orderInfo).TargetUnit.DistinctId()}");
                 Mod.AttackEvalLog.Debug?.Write("  debugOrderString: " + __result.debugOrderString);
                 Mod.AttackEvalLog.Debug?.Write("  behaviorTrace: " + __result.behaviorTrace);
                 unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking target. Success");
