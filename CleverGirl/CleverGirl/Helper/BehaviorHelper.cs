@@ -41,9 +41,6 @@ namespace CleverGirl.Helper
         {
             switch (behaviorVariableValue.type)
             {
-                case BehaviorVariableValue.BehaviorVariableType.Undefined:
-                case BehaviorVariableValue.BehaviorVariableType.EncounterObjectGameLogic:
-                    return "Undefined";
                 case BehaviorVariableValue.BehaviorVariableType.Float:
                     return behaviorVariableValue.FloatVal.ToString();
                 case BehaviorVariableValue.BehaviorVariableType.Int:
@@ -53,7 +50,7 @@ namespace CleverGirl.Helper
                 case BehaviorVariableValue.BehaviorVariableType.String:
                     return behaviorVariableValue.StringVal;
                 default:
-                    throw new ArgumentOutOfRangeException();
+                    return "Undefined";
             }
         }
 

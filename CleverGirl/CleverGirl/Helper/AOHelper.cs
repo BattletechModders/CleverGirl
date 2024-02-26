@@ -10,6 +10,7 @@ using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using TScript.Ops;
 using UnityEngine;
+using static System.Math;
 using static AttackEvaluator;
 
 namespace CleverGirl.Helper {
@@ -143,7 +144,7 @@ namespace CleverGirl.Helper {
                 foreach (KeyValuePair<Weapon, AmmoModePair> wamp in attackEvaluation2.WeaponList)
                 {
                     weaponListSB.Append("'");
-                    weaponListSB.Append(wamp.Key.UIName);
+                    weaponListSB.Append(wamp.Key?.UIName);
                     weaponListSB.Append("', ");
                 }
                 weaponListSB.Append(")");
@@ -483,6 +484,7 @@ namespace CleverGirl.Helper {
                 int rawRangedDam = 0, rawMeleeDam = 0;
                 foreach (Weapon weapon in attacker.Weapons)
                 {
+                    //TODO: Instead of the very simplistic and naive approach below, use proper damage prediction for melee weapon and ranged weapons?
                     if (weapon.WeaponCategoryValue.CanUseInMelee)
                     {
                         rawMeleeDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
@@ -494,7 +496,7 @@ namespace CleverGirl.Helper {
                         foreach (AmmoModePair ammoModePair in weapon.getAvaibleFiringMethods())
                         {
                             weapon.ApplyAmmoMode(ammoModePair);
-                            optimalDamage = Mathf.Max(optimalDamage, (int)(weapon.DamagePerShot * weapon.ShotsWhenFired));
+                            optimalDamage = Max(optimalDamage, (int)(weapon.DamagePerShot * weapon.ShotsWhenFired));
                         }
                         weapon.ApplyAmmoMode(currentAmmoMode);
                         weapon.ResetTempAmmo();
