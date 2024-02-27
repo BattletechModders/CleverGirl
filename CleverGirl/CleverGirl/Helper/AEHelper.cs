@@ -186,6 +186,10 @@ namespace CleverGirl
             foreach (CondensedWeapon cWeap in potentialWeapons)
             {
                 Weapon wep = cWeap.First;
+                
+                // Decided if need to check one-shot case. CAC combines the JSON field "StartingAmmoCapacity" with the JSON object InternalAmmo, so checking the latter covers both.
+                bool hasInternalAmmo = wep.exDef().isHaveInternalAmmo;
+                
                 AmmoModePair currentAmmoMode = wep.getCurrentAmmoMode();
                 List<AmmoModePair> validAmmoModes = new List<AmmoModePair>();
                 foreach (AmmoModePair ammoMode in cWeap.ammoModes)
@@ -196,18 +200,19 @@ namespace CleverGirl
                         Mod.Log.Debug?.Write($" Skipping ammoMode {ammoMode} for {wep.UIName} in ranged set as distance: {distance} < minRange: {wep.MinRange}");
                         continue;
                     }
-
-                    // Check one-shot weapons for accuracy
-                    if (wep.weaponDef.StartingAmmoCapacity == wep.weaponDef.ShotsWhenFired)
-                    {
-                        float toHitFromPosition = cWeap.First.GetToHitFromPosition(target, 1, attackPosition,
-                            target.CurrentPosition, true, true, false);
-                        if (toHitFromPosition < Mod.Config.Weights.OneShotMinimumToHit)
+                   
+                        //Does the current mode use internal ammo and does it have enough for just a single shot?
+                        //This can be a false positive if the mode had more internal ammo originally but now has exactly enough ammunition left for a single shot. But that is probably a good case for the AI To be a bit more hesitant either way.
+                        if (hasInternalAmmo && wep.mode().AmmoCategory.BaseCategory.UsesInternalAmmo && wep.CurrentAmmo == wep.mode().ShotsWhenFired)
                         {
-                            Mod.Log.Debug?.Write($" Skipping ammo mode {ammoMode} for {wep.UIName} in ranged set as toHitFromPosition: {toHitFromPosition} is below OneShotMinimumToHit: {Mod.Config.Weights.OneShotMinimumToHit}");
-                            continue;
+                            float toHitFromPosition = cWeap.First.GetToHitFromPosition(target, 1, attackPosition,
+                                target.CurrentPosition, true, true, false);
+                            if (toHitFromPosition < Mod.Config.Weights.OneShotMinimumToHit)
+                            {
+                                Mod.Log.Debug?.Write($" Skipping ammo mode {ammoMode} for {wep.UIName} in ranged set as toHitFromPosition: {toHitFromPosition} is below OneShotMinimumToHit: {Mod.Config.Weights.OneShotMinimumToHit}");
+                                continue;
+                            }
                         }
-                    }
                     
                     validAmmoModes.Add(ammoMode);
                     
