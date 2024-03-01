@@ -99,9 +99,11 @@ namespace CleverGirl
 
                 if (weaponSetsByAttackType != null)
                 {
+                    AIHelper.ClearCaches();
+                    
                     foreach (var weaponList in weaponSetsByAttackType)
                     {
-                        Mod.Log.Debug?.Write($"Evaluating {weaponList.Count} weapons for a {attackLabel}");
+                        Mod.Log.Trace?.Write($"Evaluating {weaponList.Count} weapons for a {attackLabel}");
                         AmmoModeAttackEvaluation attackEvaluation = new AmmoModeAttackEvaluation();
                         attackEvaluation.AttackType = (AIUtil.AttackType)i;
                         attackEvaluation.HeatGenerated = (float)AIHelper.HeatForAttack(weaponList);
@@ -116,7 +118,7 @@ namespace CleverGirl
                         attackEvaluation.lowestHitChance = AIHelper.LowestHitChance(weaponList, target, attackPosition, targetPosition, targetIsEvasive);
 
                         // Expand the list to all weaponDefs with ammoMode, not our condensed ones
-                        Mod.Log.Debug?.Write($"Expanding weapon list for AttackEvaluation");
+                        Mod.Log.Trace?.Write($"Expanding weapon list for AttackEvaluation");
                         Dictionary<Weapon, AmmoModePair> aeWeaponList = new Dictionary<Weapon, AmmoModePair>();
                         foreach (CondensedWeaponAmmoMode cWeapon in weaponList!)
                         {
@@ -132,13 +134,19 @@ namespace CleverGirl
                                     }
                                     cWeapon.RestoreBaseAmmoMode();
                                 }
-                                
                                 aeWeaponList.Add(weapon, cWeapon.ammoModePair);
                             }
                         }
-                        Mod.Log.Debug?.Write($"List size {weaponList?.Count} was expanded to: {aeWeaponList.Count}");
+                        Mod.Log.Trace?.Write($"List size {weaponList?.Count} was expanded to: {aeWeaponList.Count}");
                         attackEvaluation.WeaponList = aeWeaponList;
-                        allResults.Add(attackEvaluation);
+                        if (!ContainsSimilarAttack(allResults, attackEvaluation)) {
+                            Mod.Log.Trace?.Write($"Adding new attackEvaluation: {attackEvaluation}");
+                            allResults.Add(attackEvaluation);
+                        }
+                        else
+                        {
+                            Mod.Log.Trace?.Write($"Skipping duplicate attackEvaluation: {attackEvaluation}");
+                        }
                     }
                 }
             }
@@ -149,6 +157,14 @@ namespace CleverGirl
             sortedResults.Reverse();
 
             return sortedResults;
+        }
+
+        private static bool ContainsSimilarAttack(ConcurrentBag<AmmoModeAttackEvaluation> bag, AmmoModeAttackEvaluation evaluation)
+        {
+            return bag.Any(bagEvaluation => bagEvaluation.AttackType.Equals(evaluation.AttackType) 
+                                            && bagEvaluation.HeatGenerated.Equals(evaluation.HeatGenerated) 
+                                            && bagEvaluation.ExpectedDamage.Equals(evaluation.ExpectedDamage) 
+                                            && bagEvaluation.lowestHitChance.Equals(evaluation.lowestHitChance));
         }
 
         public static bool MeleeDamageOutweighsRisk(float attackerMeleeDam, Mech attacker, ICombatant target)
@@ -237,32 +253,77 @@ namespace CleverGirl
 
         }
 
-        public static List<List<CondensedWeaponAmmoMode>> MakeWeaponAmmoModeSets(List<CondensedWeapon> weapons)
+         public static List<List<CondensedWeaponAmmoMode>> MakeWeaponAmmoModeSets(List<CondensedWeapon> weapons)
         {
-            List<List<CondensedWeaponAmmoMode>> permutations = new List<List<CondensedWeaponAmmoMode>>();
-            GeneratePermutations(weapons, 0, new List<CondensedWeaponAmmoMode>(), permutations);
+            var permutations = new List<List<CondensedWeaponAmmoMode>>();
+            var currentPermutation = new List<CondensedWeaponAmmoMode>();
+            var seenPermutations = new HashSet<List<CondensedWeaponAmmoMode>>(new PermutationComparer());
+
+            GeneratePermutations(weapons, 0, currentPermutation, permutations, seenPermutations);
+
             return permutations;
         }
 
-        private static void GeneratePermutations(List<CondensedWeapon> weapons, int index, List<CondensedWeaponAmmoMode> currentPermutation, List<List<CondensedWeaponAmmoMode>> permutations)
+        private static void GeneratePermutations(List<CondensedWeapon> weapons, int weaponIndex,
+            List<CondensedWeaponAmmoMode> currentPermutation,
+            List<List<CondensedWeaponAmmoMode>> permutations,
+            HashSet<List<CondensedWeaponAmmoMode>> seenPermutations)
         {
-            if (index == weapons.Count)
+            if (weaponIndex == weapons.Count)
             {
-                permutations.Add(currentPermutation.ToList());
+                // Add a copy to the set of seen permutations
+                if (seenPermutations.Add(currentPermutation.ToList()))
+                {
+                    // Add a copy to the list of permutations is not seen
+                    permutations.Add(currentPermutation.ToList()); 
+                }
+
                 return;
             }
 
-            // Include the current weapon and its ammo mode pairs
-            CondensedWeapon currentCondensedWeapon = weapons[index];
-            foreach (var ammoModePair in currentCondensedWeapon.ammoModes)
+            CondensedWeapon currentWeapon = weapons[weaponIndex];
+
+            foreach (AmmoModePair ammoModePair in currentWeapon.ammoModes)
             {
-                List<CondensedWeaponAmmoMode> newPermutation = currentPermutation.ToList();
-                newPermutation.Add(new CondensedWeaponAmmoMode(currentCondensedWeapon,  ammoModePair));
-                GeneratePermutations(weapons, index + 1, newPermutation, permutations);
+                currentPermutation.Add(new CondensedWeaponAmmoMode(currentWeapon, ammoModePair));
+                GeneratePermutations(weapons, weaponIndex + 1, currentPermutation, permutations, seenPermutations);
+                currentPermutation.RemoveAt(currentPermutation.Count - 1); // Remove the last item to backtrack
             }
 
-            // Exclude the current weapon
-            GeneratePermutations(weapons, index + 1, currentPermutation, permutations);
+            // Continue to the next weapon without adding any ammo mode pairs from the current weapon
+            GeneratePermutations(weapons, weaponIndex + 1, currentPermutation, permutations, seenPermutations);
+        }
+
+        // Custom comparer for list of permutations to ignore ordering
+        private class PermutationComparer : IEqualityComparer<List<CondensedWeaponAmmoMode>>
+        {
+            public bool Equals(List<CondensedWeaponAmmoMode> x, List<CondensedWeaponAmmoMode> y)
+            {
+                if (x == null && y == null)
+                    return true;
+                if (x == null || y == null)
+                    return false;
+                
+                // Check if the counts are equal
+                if (x.Count != y.Count)
+                    return false;
+
+                // Check if every element in x has a corresponding equal element in y
+                return x.All(y.Contains);
+            }
+
+            public int GetHashCode(List<CondensedWeaponAmmoMode> obj)
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    foreach (var item in obj)
+                    {
+                        hash = hash * 31 + item.GetHashCode();
+                    }
+                    return hash;
+                }
+            }
         }
     }
 }

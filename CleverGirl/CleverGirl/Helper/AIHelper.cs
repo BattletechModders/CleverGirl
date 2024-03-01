@@ -8,6 +8,8 @@ using UnityEngine;
 
 namespace CleverGirl {
     public class AIHelper {
+        
+        private static readonly Dictionary<CondensedWeaponAmmoMode, float> damageEVCache = new Dictionary<CondensedWeaponAmmoMode, float>();
 
         public static int HeatForAttack(List<CondensedWeaponAmmoMode> weaponList) {
             int num = 0;
@@ -68,13 +70,23 @@ namespace CleverGirl {
             {
                 cWeapon.ApplyAmmoMode();
                 bool isArtillery = cWeapon.First.IsArtillery();
-                totalExpectedDam[isArtillery] += CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, unit, attackPosition, target, targetPosition);
+                if (damageEVCache.TryGetValue(cWeapon, out var expectedDamage))
+                {
+                        Mod.Log.Trace?.Write($"Expected Damage cache hit for {cWeapon} -> {expectedDamage}");
+                }
+                else
+                {
+                    Mod.Log.Trace?.Write($"Expected Damage cache miss for {cWeapon}, calculating");
+                    expectedDamage = CalculateWeaponDamageEV(cWeapon, unitForBVContext.BehaviorTree, attackParams, unit, attackPosition, target, targetPosition);
+                    damageEVCache.Add(cWeapon, expectedDamage);
+                }
+                totalExpectedDam[isArtillery] += expectedDamage; 
                 cWeapon.RestoreBaseAmmoMode();
             }
 
             float blowQualityMultiplier = unit.Combat.ToHit.GetBlowQualityMultiplier(attackParams.Quality);
-            float artilleryDamage = totalExpectedDam.GetValueOrDefault(true, 0f) * blowQualityMultiplier;
-            float standardDamage = totalExpectedDam.GetValueOrDefault(false, 0f) * blowQualityMultiplier;
+            float artilleryDamage = totalExpectedDam.TryGetValue(true, out var artilleryValue) ? artilleryValue : 0f * blowQualityMultiplier;
+            float standardDamage = totalExpectedDam.TryGetValue(false, out var stdValue) ? stdValue : 0f * blowQualityMultiplier;
 
             if (artilleryDamage == 0)
             {
@@ -172,6 +184,7 @@ namespace CleverGirl {
             }
         }
         
+        //TODO: Need to check logic from here on, some weapons return same damage with different shot modes used
         private static float DetermineDamage(CondensedWeaponAmmoMode cWeapon, AttackParams attackParams, AbstractActor attacker, Vector3 attackerPos, 
             ICombatant target, float heatToDamRatio, float stabToDamRatio)
         {
@@ -288,6 +301,11 @@ namespace CleverGirl {
             float maxTargetDam = AttackEvaluator.MaxDamageLevel(attacker, targetActor);
             Mod.Log.Debug?.Write($"Returning {maxTargetDam >= existingTargetDam} as maxTargetDamage: {maxTargetDam} >= ExistingTargetDamageForDFAAttack BehVar: {existingTargetDam}");
             return maxTargetDam >= existingTargetDam;
+        }
+
+        public static void ClearCaches()
+        {
+            damageEVCache.Clear();
         }
     }
 }

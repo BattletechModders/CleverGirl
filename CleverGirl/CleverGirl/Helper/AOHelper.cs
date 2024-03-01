@@ -485,6 +485,7 @@ namespace CleverGirl.Helper {
                 foreach (Weapon weapon in attacker.Weapons)
                 {
                     //TODO: Instead of the very simplistic and naive approach below, use proper damage prediction for melee weapon and ranged weapons?
+                    //      Actually, due to how weapon categories are set up this will count practically all weapons as melee. We should probably check if each weapon is actually a melee weapon instead.
                     if (weapon.WeaponCategoryValue.CanUseInMelee)
                     {
                         rawMeleeDam += (int)(weapon.DamagePerShot * weapon.ShotsWhenFired);
