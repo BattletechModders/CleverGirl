@@ -91,38 +91,38 @@ namespace CleverGirl.Helper {
 
             List<AmmoModeAttackEvaluation> list = AEHelper.EvaluateAttacks(attackerAA, target, weaponSetsByAttackType, attackerAA.CurrentPosition, target.CurrentPosition, targetIsEvasive);
             Mod.Log.Debug?.Write($"AEHelper found {list.Count} different attack solutions after evaluating attacks");
+
+            // This code does nothing except spam a lot of info in the logs, the predicted values aren't even correct for later in the decision tree.
             if (Mod.Log.IsTrace)
             {
-                for (var i = 0; i < list.Count; i++)
+                float bestRangedEDam = 0f;
+                float bestMeleeEDam = 0f;
+                float bestDFAEDam = 0f;
+                for (int m = 0; m < list.Count; m++)
                 {
-                    Mod.Log.Trace?.Write($"Attack Evaluation {i} => {list[i]}");
+                    AmmoModeAttackEvaluation attackEvaluation = list[m];
+                    Mod.Log.Trace?.Write(
+                        $"Attack Evaluation result {m} of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
+                        $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
+                    switch (attackEvaluation.AttackType)
+                    {
+                        case AIUtil.AttackType.Shooting:
+                            bestRangedEDam = Mathf.Max(bestRangedEDam, attackEvaluation.ExpectedDamage);
+                            break;
+                        case AIUtil.AttackType.Melee:
+                            bestMeleeEDam = Mathf.Max(bestMeleeEDam, attackEvaluation.ExpectedDamage);
+                            break;
+                        case AIUtil.AttackType.DeathFromAbove:
+                            bestDFAEDam = Mathf.Max(bestDFAEDam, attackEvaluation.ExpectedDamage);
+                            break;
+                        default:
+                            Debug.Log("unknown attack type: " + attackEvaluation.AttackType);
+                            break;
+                    }
                 }
+
+                Mod.Log.Trace?.Write($"Best values prior to pruning - shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
             }
-            float bestRangedEDam = 0f;
-            float bestMeleeEDam = 0f;
-            float bestDFAEDam = 0f;
-            for (int m = 0; m < list.Count; m++)
-            {
-                AmmoModeAttackEvaluation attackEvaluation = list[m];
-                Mod.Log.Trace?.Write($"evaluated attack of type {attackEvaluation.AttackType} with {attackEvaluation.WeaponList.Count} weapons, " +
-                    $"damage EV of {attackEvaluation.ExpectedDamage}, heat {attackEvaluation.HeatGenerated}");
-                switch (attackEvaluation.AttackType)
-                {
-                    case AIUtil.AttackType.Shooting:
-                        bestRangedEDam = Mathf.Max(bestRangedEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    case AIUtil.AttackType.Melee:
-                        bestMeleeEDam = Mathf.Max(bestMeleeEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    case AIUtil.AttackType.DeathFromAbove:
-                        bestDFAEDam = Mathf.Max(bestDFAEDam, attackEvaluation.ExpectedDamage);
-                        break;
-                    default:
-                        Debug.Log("unknown attack type: " + attackEvaluation.AttackType);
-                        break;
-                }
-            }
-            Mod.Log.Debug?.Write($"best shooting: {bestRangedEDam}  melee: {bestMeleeEDam}  dfa: {bestDFAEDam}");
 
             float targetMaxArmorFractionFromHittableLocations = AttackEvaluator.MaxDamageLevel(attackerAA, target);
             float attackerLegDamage = attackerMech == null ? 0f : AttackEvaluator.LegDamageLevel(attackerMech);
@@ -132,25 +132,16 @@ namespace CleverGirl.Helper {
             float maxAllowedLegDamageForDFA = BehaviorHelper.GetBehaviorVariableValue(attackerAA.BehaviorTree, BehaviorVariableName.Float_OwnMaxLegDamageForDFAAttack).FloatVal;
             Mod.Log.Debug?.Write($"  BehVars => ExistingTargetDamageForDFAAttack: {existingTargetDamageForDFA}  OwnMaxLegDamageForDFAAttack: {maxAllowedLegDamageForDFA}");
 
+             
+            List<AmmoModeAttackEvaluation> rejectedDueToOverheat = new List<AmmoModeAttackEvaluation>();
             // LOGIC: Now, evaluate every set of attacks in the list
             for (int n = 0; n < list.Count; n++)
             {
-                AmmoModeAttackEvaluation attackEvaluation2 = list[n];
+                AmmoModeAttackEvaluation currentAttackEvaluation = list[n];
                 Mod.Log.Debug?.Write($" ==== Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
-
-                // TODO: Do we really need this spam?
-                StringBuilder weaponListSB = new StringBuilder();
-                weaponListSB.Append(" Weapons: (");
-                foreach (KeyValuePair<Weapon, AmmoModePair> wamp in attackEvaluation2.WeaponList)
-                {
-                    weaponListSB.Append("'");
-                    weaponListSB.Append(wamp.Key?.UIName);
-                    weaponListSB.Append("', ");
-                }
-                weaponListSB.Append(")");
-                Mod.Log.Debug?.Write(weaponListSB.ToString());
-
-                if (attackEvaluation2.WeaponList.Count == 0)
+                Mod.Log.Trace?.Write($"  with weapons {GetWeaponsListString(currentAttackEvaluation)}");
+ 
+                if (currentAttackEvaluation.WeaponList.Count == 0)
                 {
                     Mod.Log.Debug?.Write("SOLUTION REJECTED - no weapons!");
                     continue;
@@ -158,8 +149,8 @@ namespace CleverGirl.Helper {
 
                 // TODO: Does heatGenerated account for jump heat?
                 // TODO: Does not rollup heat!
-                bool willCauseOverheat = attackEvaluation2.HeatGenerated + currentHeat > acceptableHeat;
-                Mod.Log.Debug?.Write($"heat generated: {attackEvaluation2.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
+                bool willCauseOverheat = currentAttackEvaluation.HeatGenerated + currentHeat > acceptableHeat;
+                Mod.Log.Debug?.Write($"heat generated: {currentAttackEvaluation.HeatGenerated}  current: {currentHeat}  acceptable: {acceptableHeat}  willOverheat: {willCauseOverheat}");
                 //if (willCauseOverheat && attackerMech.OverheatWillCauseDeath())
                 //{
                 //    Mod.Log.Debug?.Write("SOLUTION REJECTED - overheat would cause own death");
@@ -168,6 +159,7 @@ namespace CleverGirl.Helper {
                 if (willCauseOverheat)
                 {
                     Mod.Log.Info?.Write("SOLUTION REJECTED - would cause overheat.");
+                    rejectedDueToOverheat.Add(currentAttackEvaluation);
                     continue;
                 }
 
@@ -181,7 +173,7 @@ namespace CleverGirl.Helper {
                 //    continue;
                 //}
 
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.Melee)
+                if (currentAttackEvaluation.AttackType == AIUtil.AttackType.Melee)
                 {
 
                     if (targetActor == null)
@@ -218,7 +210,7 @@ namespace CleverGirl.Helper {
                 }
 
                 // Check for DFA auto-failures
-                if (attackEvaluation2.AttackType == AIUtil.AttackType.DeathFromAbove)
+                if (currentAttackEvaluation.AttackType == AIUtil.AttackType.DeathFromAbove)
                 {
                     if (targetActor == null)
                     {
@@ -261,8 +253,12 @@ namespace CleverGirl.Helper {
                 }
 
                 // LOGIC: If we have some damage from an attack, can we improve upon it as a morale / called shot / multi-attack?
-                if (attackEvaluation2.ExpectedDamage > 0f)
+                if (currentAttackEvaluation.ExpectedDamage > 0f)
                 {
+                    // TODO: Do we really need this spam?
+                    var weaponsListString = GetWeaponsListString(currentAttackEvaluation);
+                    Mod.Log.Debug?.Write($"Chosen AttackEvaluation has weapons: {weaponsListString}");
+                    
                     BehaviorTreeResults behaviorTreeResults = new BehaviorTreeResults(BehaviorNodeState.Success);
 
                     // LOGIC: Check for a morale attack (based on available morale) - target must be shutdown or knocked down
@@ -293,7 +289,7 @@ namespace CleverGirl.Helper {
 
                     AttackOrderInfo attackOrderInfo = new AttackOrderInfo(target)
                     {
-                        Weapons = new List<Weapon>(attackEvaluation2.WeaponList.Keys),
+                        Weapons = new List<Weapon>(currentAttackEvaluation.WeaponList.Keys),
                         TargetUnit = target,
                         IsMelee = false,
                         IsDeathFromAbove = false
@@ -303,7 +299,7 @@ namespace CleverGirl.Helper {
                     
                     foreach (Weapon weapon in attackOrderInfo.Weapons)
                     {
-                        AmmoModePair selectedAmmoMode = attackEvaluation2.WeaponList[weapon];
+                        AmmoModePair selectedAmmoMode = currentAttackEvaluation.WeaponList[weapon];
                         weapon.ApplyAmmoMode(selectedAmmoMode);
                         if (selectedAmmoMode.ammoId != null)
                         {
@@ -315,7 +311,7 @@ namespace CleverGirl.Helper {
                         }
                     }
 
-                    AIUtil.AttackType attackType = attackEvaluation2.AttackType;
+                    AIUtil.AttackType attackType = currentAttackEvaluation.AttackType;
                     Mod.Log.Debug?.Write($"Created attackOrderInfo with attackType: {attackType} vs. target: {target.DistinctId()}.  " +
                         $"WeaponCount: {attackOrderInfo?.Weapons?.Count} IsMelee: {attackOrderInfo.IsMelee}  IsDeathFromAbove: {attackOrderInfo.IsDeathFromAbove}");
 
@@ -338,20 +334,58 @@ namespace CleverGirl.Helper {
                     }
 
                     behaviorTreeResults.orderInfo = attackOrderInfo;
-                    behaviorTreeResults.debugOrderString = $" using attack type: {attackEvaluation2.AttackType} against: {target.DisplayName}";
+                    behaviorTreeResults.debugOrderString = $" using attack type: {currentAttackEvaluation.AttackType} against: {target.DisplayName}";
 
                     Mod.Log.Debug?.Write("Returning attack order " + behaviorTreeResults.debugOrderString);
                     order = behaviorTreeResults;
                     Mod.Log.Debug?.Write($" ==== DONE Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
-                    return attackEvaluation2.ExpectedDamage;
+                    return currentAttackEvaluation.ExpectedDamage;
                 }
                 Mod.Log.Debug?.Write("Rejecting attack with no expected damage");
                 Mod.Log.Debug?.Write($" ==== DONE Evaluating attack solution #{n} vs target: {targetActor.DistinctId()}");
             }
 
+            // For attacks which caused overheat, can we use less weapons?
+            if (rejectedDueToOverheat.Count > 0)
+            {
+                foreach (AmmoModeAttackEvaluation attackEvaluation in list)
+                {
+                    
+                }
+            }
+            
             Mod.Log.Debug?.Write("Could not build an AttackOrder with damage, returning a null order. Unit will likely brace.");
             order = null;
             return 0f;
+        }
+
+        private static string GetWeaponsListString(AmmoModeAttackEvaluation currentAttackEvaluation)
+        {
+            StringBuilder weaponListSB = new StringBuilder();
+            weaponListSB.Append("(");
+
+            foreach (KeyValuePair<Weapon, AmmoModePair> wamp in currentAttackEvaluation.WeaponList)
+            {
+                weaponListSB.Append("'");
+                weaponListSB.Append(wamp.Key?.UIName);
+                weaponListSB.Append("'");
+                if (!wamp.Value.modeId.Equals(WeaponMode.BASE_MODE_NAME) && !wamp.Value.modeId.Equals(WeaponMode.NONE_MODE_NAME))
+                {
+                    weaponListSB.Append(":").Append(wamp.Value.modeId);
+                    if (wamp.Value.ammoId.Length != 0)
+                    {
+                        weaponListSB.Append("/").Append(wamp.Value.ammoId);
+                    }
+                } 
+                else if (wamp.Value.ammoId.Length != 0)
+                {
+                    weaponListSB.Append(":").Append(wamp.Value.ammoId);
+                }
+                weaponListSB.Append(", ");
+            }
+            weaponListSB.Append(")");
+            string weaponsListString = weaponListSB.ToString();
+            return weaponsListString;
         }
 
         private static List<List<CondensedWeaponAmmoMode>> MakeDFAWeaponSets(Mech attacker, AbstractActor target, Vector3 attackPos, CandidateWeapons candidateWeapons)
