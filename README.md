@@ -1,3 +1,4 @@
+
 # CleverGirl
 
 This mod for the [HBS BattleTech](http://battletechgame.com/) attempts to make the AI a bit smarter.
@@ -18,6 +19,37 @@ Jumping Heat change
 
 The following values can be tweaked in `mod.json` to customize your experience:
 * **Debug:** If true, detailed information will be printed in the logs.
+* **Trace:** If true, even more detailed information will be printed in the logs. Should always be enabled together with *Debug*.
+* **UseCBTBEMelee:** If true enables integration with [CBTBE](https://github.com/BattletechModders/CBTBehaviorsEnhanced) to decide if a unit favors melee attacks.
+* **SimplifiedAmmoModeOperationThreshold:** Integer value, used to configure [Simplified Selection Mode](#simplified-selection-mode). If the configured value is less than the total amount of firing modes over all grouped weapons, simplified operation mode will be used..
+* **AttemptReducingOverheatSolutions:** If true, enables [Reduction of weapons on Overheat](#reduction-of-weapons-on-overheat).
+* **RestrictFiringModeToFlyingTargets:** List of *Id*s for firing modes that should only be used against flying targets. 
+* **NoMeleeWeaponCategory:** Category ID used to mark a weapon as never consider for melee attacks.
+* **Weights:** Three sub-configurations to control the decision weights for the AI:
+	* **FriendlyDamageMulti:** Weight multiplier for friendly fire damage. Higher value means AI will further down-prioritize firing solutions resulting in friendly fire damage.
+	* **PunchbotDamageMulti:** Weight multiplier for melee damage when considering melee attack vs ranged attack.
+	* **OneShotMinimumToHit:** Minimum hit chance for one-shot weapons to be part of a potential solution.
+* **PrioritizeArtilleryDamageRatio:** The ratio artillery damage is multplied by when deciding if to use artillery or standard damage.	
+	
+#### Standard selection of firing solution
+The standard case of selection of which weapons a unit should fire is done using the following base steps:
+* Group all weapons of same type (i.e. same *Id*) together, creating a *Condensed Weapon* group.
+* For each such Condensed Weapon, find all available firing modes and ammunition types.
+* Create all combinations of the above factors, creating all potential firing solutions.
+	* Also create separate firing solution including Melee and DFA pseudo-weapons.
+* Iterate over all potential firing solutions to find the optimal damage prediction.
+* Configure all weapons to use the selected firing mode and ammunition, where all weapons part of the same *Condensed Weapon* share the same configuration.
+* Execute the attack order
+
+#### Simplified Selection Mode
+In a situation where the AI unit has weapons of many different types and with many firing modes, the amount of potential firing solutions grows exponentially. As a result the selection algorithm can take a very long time, often minutes.
+
+The Simplified selection mode is a way to optimize the AI in such cases, limiting it to only use each *Condensed Weapon*'s base firing mode and the firing mode firing the most shots (if there is one).
+
+#### Reduction of weapons on Overheat
+When all potential firing solutions are rejected, and some of them due to projected overheating, it is possible to still find a valid firing solution to fire *some* weapons.
+
+This is done by reducing the amount of weapons part of each *Condensed Weapon* group, checking if this subset of weapons creates an acceptable heat level.
 
 ## WIP
 

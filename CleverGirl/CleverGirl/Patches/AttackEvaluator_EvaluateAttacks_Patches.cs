@@ -1,4 +1,7 @@
 ﻿using CleverGirl.Helper;
+using CleverGirl.Objects;
+using CleverGirlAIDamagePrediction;
+using CustAmmoCategories;
 
 namespace CleverGirl.Patches
 {
@@ -40,7 +43,7 @@ namespace CleverGirl.Patches
 
             Mod.AttackEvalLog.Debug?.Write(" === BEGIN DESIGNATED TARGET FIRE CHECKS ===");
 
-            BehaviorTreeResults behaviorTreeResults = null;
+            AttackOrder bestAttackOrder = null;
             AbstractActor designatedTarget = AEHelper.FilterEnemyUnitsToDesignatedTarget(unit.team as AITeam, unit.lance, unit.BehaviorTree.enemyUnits);
             float behavior1 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetByPercentage).FloatVal;
             float behavior2 = BehaviorHelper.GetBehaviorVariableValue(unit.BehaviorTree, BehaviorVariableName.Float_OpportunityFireExceedsDesignatedTargetFirepowerTakeawayByPercentage).FloatVal;
@@ -50,12 +53,12 @@ namespace CleverGirl.Patches
 
             Mod.AttackEvalLog.Info?.Write($"  Opportunity Fire damageThreshold: {opportunityFireThreshold}  takeawayThreshold: {opportunityFireTakeawayThreshold}");
 
-            if (designatedTarget != null) {
-                bestTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out behaviorTreeResults) * opportunityFireThreshold;
+            if (designatedTarget != null && !designatedTarget.isSpawnProtected()) {
+                bestTargDamage = AOHelper.MakeAttackOrderForTarget(unit, designatedTarget, isStationary, out bestAttackOrder) * opportunityFireThreshold;
                 bestTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, designatedTarget, designatedTarget.CurrentPosition, designatedTarget.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet) * opportunityFireTakeawayThreshold;
                 Mod.AttackEvalLog.Debug?.Write($"  DesignatedTarget: {designatedTarget.DistinctId()} will suffer: {bestTargDamage} damage and lose: {bestTargFirepowerReduction} firepower from attack.");
             } else {
-                Mod.AttackEvalLog.Debug?.Write("  No designated target identified.");
+                Mod.AttackEvalLog.Debug?.Write("  No valid designated target identified.");
             }
 
             Mod.AttackEvalLog.Debug?.Write(" === END DESIGNATED TARGET FIRE CHECKS ===");
@@ -64,14 +67,12 @@ namespace CleverGirl.Patches
             // Walk through every alive enemy, and see if a better shot presents itself.
             for (int j = 0; j < unit.BehaviorTree.enemyUnits.Count; j++) {
                 ICombatant combatant = unit.BehaviorTree.enemyUnits[j];
-                if (combatant == designatedTarget || combatant.IsDead) { continue; }
+                if (combatant == designatedTarget || combatant.IsDead || combatant.isSpawnProtected()) { continue; }
 
                 Mod.AttackEvalLog.Debug?.Write($"  Checking opportunity fire against target: {combatant.DistinctId()}");
 
-                AbstractActor opportunityFireTarget = combatant as AbstractActor;
-                BehaviorTreeResults oppTargAttackOrder;
                 // Should MAOFT take a param for opportunity attacks to simplify? 
-                float oppTargDamage = AOHelper.MakeAttackOrderForTarget(unit, combatant, isStationary, out oppTargAttackOrder);
+                float oppTargDamage = AOHelper.MakeAttackOrderForTarget(unit, combatant, isStationary, out var oppTargAttackOrder);
                 float oppTargFirepowerReduction = AIAttackEvaluator.EvaluateFirepowerReductionFromAttack(unit, unit.CurrentPosition, combatant, combatant.CurrentPosition, combatant.CurrentRotation, unit.Weapons, MeleeAttackType.NotSet);
                 Mod.AttackEvalLog.Debug?.Write($"  Target will suffer: {oppTargDamage} with firepower reduction: {oppTargFirepowerReduction}");
 
@@ -83,37 +84,52 @@ namespace CleverGirl.Patches
                 bool isBetterOrEqualFirepowerReduction = oppTargFirepowerReduction >= bestTargFirepowerReduction;
                 Mod.AttackEvalLog.Debug?.Write($"  Comparing firepower reduction - opportunity: {oppTargFirepowerReduction} >= best: {bestTargFirepowerReduction}");
 
-                if (oppTargAttackOrder != null && oppTargAttackOrder.orderInfo != null && isBetterTargetDamage && isBetterOrEqualFirepowerReduction) {
+                if (oppTargAttackOrder != null && oppTargAttackOrder.OrderInfo != null && isBetterTargetDamage && isBetterOrEqualFirepowerReduction) {
                     Mod.AttackEvalLog.Debug?.Write("  Opportunity attack is better than any previous option considered.");
-                    Mod.AttackEvalLog.Debug?.Write($"   Attack order type: {oppTargAttackOrder.orderInfo.OrderType} with debug: '{oppTargAttackOrder.debugOrderString}'");
+                    Mod.AttackEvalLog.Debug?.Write($"   Attack order type: {oppTargAttackOrder.OrderInfo.OrderType} with debug: '{oppTargAttackOrder.OrderString}'");
 
                     bestTargDamage = oppTargDamage;
                     bestTargFirepowerReduction = oppTargFirepowerReduction;
-                    __result = oppTargAttackOrder;
+                    bestAttackOrder = oppTargAttackOrder;
                 }
             }
             Mod.AttackEvalLog.Debug?.Write(" === END OPPORTUNITY FIRE CHECKS ===");
 
-            if (__result != null && bestTargDamage > 0) {
-                Mod.AttackEvalLog.Info?.Write($"Successfuly calculated attack order vs. target: {((AttackOrderInfo)__result.orderInfo).TargetUnit.DistinctId()}");
-                Mod.AttackEvalLog.Debug?.Write("  debugOrderString: " + __result.debugOrderString);
-                Mod.AttackEvalLog.Debug?.Write("  behaviorTrace: " + __result.behaviorTrace);
+            if (bestAttackOrder != null && bestTargDamage > 0) {
+                Mod.AttackEvalLog.Info?.Write($"Successfully calculated attack order vs. target: {bestAttackOrder.TargetId}");
+                Mod.AttackEvalLog.Debug?.Write("  debugOrderString: " + bestAttackOrder.OrderString);
+                Mod.AttackEvalLog.Debug?.Write("  behaviorTrace: " + bestAttackOrder.Order?.behaviorTrace);
                 unit.BehaviorTree.AddMessageToDebugContext(AIDebugContext.Shoot, "attacking target. Success");
+                
+                
+                // Apply the selected AmmoMode to each weapon
+                Mod.Log.Debug?.Write($"Found valid attack against {bestAttackOrder.TargetId}: {bestAttackOrder.AttackEvaluation}");
+                foreach (Weapon weapon in bestAttackOrder.Weapons)
+                {
+                    AmmoModePair selectedAmmoMode = bestAttackOrder.SelectedAmmoMode(weapon);
+                    weapon.ApplyAmmoMode(selectedAmmoMode);
+                    if (selectedAmmoMode.ammoId != null)
+                    {
+                        Mod.Log.Debug?.Write($"--  Applying selected AmmoMode {selectedAmmoMode} to weapon {weapon.UIName}");
+                    }
+                    else
+                    {
+                        Mod.Log.Debug?.Write($"--  Applying selected firing mode {selectedAmmoMode.modeId} to weapon {weapon.UIName}");
+                    }
+                }
+                
+                Mod.AttackEvalLog.Info?.Write($"=== DONE EVALUATING ATTACK from unit: {unit.DistinctId()} with isStationary: {isStationary}");
+                Mod.AttackEvalLog.Info?.Write("");
+                __result = bestAttackOrder.Order;
                 __runOriginal = false;
                 return;
             }
-            else
-            {
-                Mod.AttackEvalLog.Info?.Write("Could not calculate reasonable attacks. Skipping node.");
-                __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
-            }
-
-            Mod.AttackEvalLog.Info?.Write($"=== DONE EVALUATING ATTACK  from unit: {unit.DistinctId()} with isStationary: {isStationary}");
+            
+            Mod.AttackEvalLog.Info?.Write("Unable to find valid attack. Unit will likely brace.");
+            Mod.AttackEvalLog.Info?.Write($"=== DONE EVALUATING ATTACK from unit: {unit.DistinctId()} with isStationary: {isStationary}");
             Mod.AttackEvalLog.Info?.Write("");
-
+            __result = new BehaviorTreeResults(BehaviorNodeState.Failure);
             __runOriginal = false;
-            return;
-
         }
     }
 

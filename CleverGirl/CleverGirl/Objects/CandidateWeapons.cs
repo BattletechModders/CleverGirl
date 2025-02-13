@@ -1,25 +1,22 @@
-﻿using BattleTech;
-using BattleTech.StringInterpolation;
-using CleverGirlAIDamagePrediction;
+﻿using CleverGirlAIDamagePrediction;
 using CustAmmoCategories;
 using IRBTModUtils;
-using System.Collections;
 using System.Collections.Generic;
+using CleverGirl.Helper;
 using UnityEngine;
 
-namespace CleverGirl
+namespace CleverGirl.Objects
 {
     public class CandidateWeapons
     {
-        readonly public List<CondensedWeapon> RangedWeapons = new List<CondensedWeapon>();
-        readonly public List<CondensedWeapon> MeleeWeapons = new List<CondensedWeapon>();
-        readonly public List<CondensedWeapon> DFAWeapons = new List<CondensedWeapon>();
+        public readonly List<CondensedWeapon> RangedWeapons = new List<CondensedWeapon>();
+        public readonly List<CondensedWeapon> MeleeWeapons = new List<CondensedWeapon>();
+        public readonly List<CondensedWeapon> DFAWeapons = new List<CondensedWeapon>();
 
-        readonly private Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
+        private readonly Dictionary<string, CondensedWeapon> condensed = new Dictionary<string, CondensedWeapon>();
 
         public CandidateWeapons(AbstractActor attacker, ICombatant target)
         {
-
             // Iterate all weapons; if they can fire, add them to the Condensed Weapon list
             Mod.Log.Debug?.Write($"Calculating candidate weapons");
             for (int i = 0; i < attacker.Weapons.Count; i++)
@@ -27,10 +24,11 @@ namespace CleverGirl
                 Weapon weapon = attacker.Weapons[i];
 
                 CondensedWeapon cWeapon = new CondensedWeapon(weapon);
-                if (weapon.CanFire)
+                
+                if (HasAvailableAmmoMode(weapon))
                 {
                     Mod.Log.Debug?.Write($" -- '{weapon.defId}' included");
-                    string cWepKey = weapon.weaponDef.Description.Id;
+                    string cWepKey = weapon.defId;
                     if (condensed.ContainsKey(cWepKey))
                     {
                         condensed[cWepKey].AddWeapon(weapon);
@@ -45,6 +43,7 @@ namespace CleverGirl
                     Mod.Log.Debug?.Write($" -- '{weapon.defId}' excluded (disabled or out of ammo)");
                 }
             }
+
             Mod.Log.Debug?.Write("  -- DONE");
 
             // TODO: Can fire only evaluates ammo once... check for enough ammo for all shots?
@@ -58,7 +57,7 @@ namespace CleverGirl
                 Mod.Log.Debug?.Write($" -- weapon => '{cWeapon.First.UIName}'");
 
                 Weapon rawWeapon = cWeapon.First;
-                if (rawWeapon.WeaponCategoryValue.CanUseInMelee)
+                if (rawWeapon.CanFireInMelee(distance))
                 {
                     Mod.Log.Debug?.Write($" -- can be used in melee, adding to melee sets.");
                     MeleeWeapons.Add(cWeapon);
@@ -69,37 +68,44 @@ namespace CleverGirl
                 }
 
                 // WillFireAtTargetFromPosition has an implicit check in CAC for minimum range. False can mean there's a possible shot, but weapon mode is limiting the action
-                bool willFireAtTarget = rawWeapon.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
-                bool withinRange = distance <= rawWeapon.MaxRange;
-                Mod.Log.Debug?.Write($" -- base weaponAndAmmo has willFire: {willFireAtTarget}  willFire: {withinRange}");
-
-                bool canAttack = willFireAtTarget && withinRange;
-
-                // Iterate weapon and ammo modes
+                bool canFireAtTarget = false;
+                bool hasLOF = false;
                 List<AmmoModePair> firingMethods = rawWeapon.getAvaibleFiringMethods();
                 if (firingMethods != null && firingMethods.Count > 0)
                 {
-                    foreach (AmmoModePair item in rawWeapon.getAvaibleFiringMethods())
+                    AmmoModePair currentAmmoMode = rawWeapon.getCurrentAmmoMode();
+                    foreach (AmmoModePair ammoModePair in rawWeapon.getAvaibleFiringMethods())
                     {
-                        rawWeapon.ApplyAmmoMode(item);
+                        rawWeapon.ApplyAmmoMode(ammoModePair);
                         bool modeWillFire = rawWeapon.WillFireAtTargetFromPosition(target, attacker.CurrentPosition, attacker.CurrentRotation);
                         bool modeInRange = distance <= rawWeapon.MaxRange;
-                        Mod.Log.Debug?.Write($" -- ammoMode: {item.ammoId}_{item.modeId} for weapon: {rawWeapon.UIName} has willFire: {modeWillFire} willFire: {modeInRange}");
+                        Mod.Log.Debug?.Write($" -- Weapon: {rawWeapon.UIName} with modeId: {ammoModePair.modeId} using ammoId: {ammoModePair.ammoId} has willFire: {modeWillFire} inRange: {modeInRange}");
 
-                        if (modeWillFire && modeInRange && !canAttack)
+                        if (modeWillFire)
                         {
-                            canAttack = true;
+                            hasLOF = true;
+                        }
+                        if (modeWillFire && modeInRange)
+                        {
+                            Mod.Log.Debug?.Write($" -- ammoMode: {ammoModePair.ammoId} modeId: {ammoModePair.modeId} has LOF and is within range, weapon will be added to ranged set");
+                            canFireAtTarget = true;
+                            cWeapon.AddAmmoMode(ammoModePair);
                         }
                     }
+                    rawWeapon.ApplyAmmoMode(currentAmmoMode);
+                    rawWeapon.ResetTempAmmo();
+                }
+                else
+                {
+                    Mod.Log.Warn?.Write($"-- No modes found for {rawWeapon.UIName}");
                 }
 
-                if (canAttack)
+                if (canFireAtTarget)
                 {
-                    Mod.Log.Debug?.Write($" -- weapon has LOF and is within range, adding to ranged set");
                     RangedWeapons.Add(cWeapon);
                 }
-
-                if (!willFireAtTarget)
+                
+                if (!hasLOF)
                 {
                     LineOfFireLevel lofLevel = SharedState.Combat.LOS.GetLineOfFire(attacker, attacker.CurrentPosition, target, target.CurrentPosition, target.CurrentRotation, out Vector3 collisionWorldPos);
                     bool inArc = attacker.IsTargetPositionInFiringArc(target, attacker.CurrentPosition, attacker.CurrentRotation, target.CurrentPosition);
@@ -113,8 +119,25 @@ namespace CleverGirl
                     Mod.Log.Info?.Write($"  -- attackAngle: {attackAngle}  positionDeltaAngle: {positionDeltaAngle}  deltaAngle: {deltaAngle}  absAngle: {absAngle}");
                     Mod.Log.Info?.Write($"  -- target pos: {target.CurrentPosition}  rot: {target.CurrentRotation}");
                 }
-
             }
+        }
+
+        private static bool HasAvailableAmmoMode(Weapon weapon)
+        {
+            AmmoModePair currentAmmoMode = weapon.getCurrentAmmoMode();
+            bool canFire = false;
+            foreach (AmmoModePair ammoModePair in weapon.getAvaibleFiringMethods())
+            {
+                weapon.ApplyAmmoMode(ammoModePair);
+                if (weapon.CanFire)
+                {
+                    canFire = true;
+                    break;
+                }
+            }
+            weapon.ApplyAmmoMode(currentAmmoMode);
+            weapon.ResetTempAmmo();
+            return canFire;
         }
     }
 }

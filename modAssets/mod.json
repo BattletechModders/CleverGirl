@@ -15,10 +15,15 @@
         "Trace" : false,
         "Profile" : false,
         "UseCBTBEMelee" : true,
+		"SimplifiedAmmoModeOperationThreshold":  40,
+        "AttemptReducingOverheatSolutions": false,
+		"RestrictFiringModeToFlyingTargets": [],
         "Weights" : {
             "FriendlyDamageMulti" : 2.0,
             "PunchbotDamageMulti" : 2.0,
             "OneShotMinimumToHit" : 0.4
-        }
+        },		
+        "NoMeleeWeaponCategory": "NeverMelee",
+        "PrioritizeArtilleryDamageRatio": 0.3
     }
 }

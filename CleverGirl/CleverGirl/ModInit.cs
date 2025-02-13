@@ -17,7 +17,7 @@ namespace CleverGirl
 
         public static DeferringLogger Log;
         public static DeferringLogger AttackEvalLog;
-        public static DeferringLogger AttackDetailsLog;
+        public static DeferringLogger MeleeLog;
         public static string ModDir;
         public static ModConfig Config;
 
@@ -40,7 +40,7 @@ namespace CleverGirl
 
             Log = new DeferringLogger(modDirectory, "clever_girl", Mod.Config.Debug, Mod.Config.Trace);
             AttackEvalLog = new DeferringLogger(modDirectory, "clever_girl.unit_attack_eval", Mod.Config.Debug, Mod.Config.Trace);
-            AttackDetailsLog = new DeferringLogger(modDirectory, "clever_girl.attack_details", Mod.Config.Debug, Mod.Config.Trace);
+            MeleeLog = new DeferringLogger(modDirectory, "clever_girl.melee", Mod.Config.Debug, Mod.Config.Trace);
 
             Assembly asm = Assembly.GetExecutingAssembly();
             FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(asm.Location);
