@@ -149,15 +149,31 @@ public static class MeleeHelper
         }
 
         return false;
-    } 
+    }
 
     public static bool CanFireInMelee(this Weapon weapon)
     {
+
+
         if (!weapon.WeaponCategoryValue.CanUseInMelee)
         {
             return false;
         }
 
-        return !weapon.baseComponentRef?.GetComponents<Category>().Any(cat => cat.CategoryID.Equals(Mod.Config.NoMeleeWeaponCategory)) ?? false;
+        // Check turrets
+        if (weapon.turretComponentRef != null)
+        {
+            return !weapon.turretComponentRef?.GetComponents<Category>().Any(cat => cat.CategoryID.Equals(Mod.Config.NoMeleeWeaponCategory)) ?? false;
+        }
+        else if (weapon.vehicleComponentRef != null)
+        {
+            return !weapon.vehicleComponentRef?.GetComponents<Category>().Any(cat => cat.CategoryID.Equals(Mod.Config.NoMeleeWeaponCategory)) ?? false;
+        }
+        else
+        {
+            // Assume we've fallen through to a mech
+            return !weapon.mechComponentRef?.GetComponents<Category>().Any(cat => cat.CategoryID.Equals(Mod.Config.NoMeleeWeaponCategory)) ?? false;
+        }
+
     } 
 }
